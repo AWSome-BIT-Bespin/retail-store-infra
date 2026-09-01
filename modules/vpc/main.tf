@@ -1,17 +1,3 @@
-terraform {
-    required_providers {
-      aws = {
-        source = "hasicorp/aws"
-        version = "~> 6.0"
-        }
-    }
-}
-
-
-provider "aws" {
-  region = "ap-northeast-2"
-}
-
 data "aws_availability_zones" "available" {
   state = "available"
 }
@@ -25,7 +11,6 @@ resource "aws_vpc" "rs_vpc" {
     Name = "rs-vpc"
   }
 }
-
 
 resource "aws_subnet" "public_a" {
   vpc_id                  = aws_vpc.rs_vpc.id
@@ -53,7 +38,7 @@ resource "aws_subnet" "public_b" {
 
 resource "aws_subnet" "private_app_a" {
   vpc_id                  = aws_vpc.rs_vpc.id
-  cidr_block              = "10.0.11.0/24"
+  cidr_block              = "10.0.3.0/24"
   availability_zone       = data.aws_availability_zones.available.names[0]
   map_public_ip_on_launch = false
 
@@ -66,7 +51,7 @@ resource "aws_subnet" "private_app_a" {
 
 resource "aws_subnet" "private_app_b" {
   vpc_id                  = aws_vpc.rs_vpc.id
-  cidr_block              = "10.0.21.0/24"
+  cidr_block              = "10.0.4.0/24"
   availability_zone       = data.aws_availability_zones.available.names[1]
   map_public_ip_on_launch = false
 
@@ -77,13 +62,9 @@ resource "aws_subnet" "private_app_b" {
   }
 }
 
-# -------------------------
-# Private DB Subnets
-# -------------------------
-
 resource "aws_subnet" "private_db_a" {
   vpc_id                  = aws_vpc.rs_vpc.id
-  cidr_block              = "10.0.12.0/24"
+  cidr_block              = "10.0.5.0/24"
   availability_zone       = data.aws_availability_zones.available.names[0]
   map_public_ip_on_launch = false
 
@@ -96,7 +77,7 @@ resource "aws_subnet" "private_db_a" {
 
 resource "aws_subnet" "private_db_b" {
   vpc_id                  = aws_vpc.rs_vpc.id
-  cidr_block              = "10.0.22.0/24"
+  cidr_block              = "10.0.6.0/24"
   availability_zone       = data.aws_availability_zones.available.names[1]
   map_public_ip_on_launch = false
 
