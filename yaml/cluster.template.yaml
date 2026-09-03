@@ -15,7 +15,7 @@ vpc:
   id: ${VPC_ID} # vpc 바뀔때 마다 집어 넣어야함
 
   clusterEndpoints:
-    publicAcess: true
+    publicAccess: true
     privateAccess: true
 
   publicAccessCIDRs:
