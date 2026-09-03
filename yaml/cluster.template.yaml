@@ -50,10 +50,11 @@ managedNodeGroups:
     volumeType: gp3
 
     tags:
-      Name: rt-cluster-1
+      Name: retail-app-node-1
+      Tier: workernode
       Workload: app
 
-  - name: rt-app-node-2
+  - name: retail-app-node-2
     instanceType: t3.large
     amiFamily: AmazonLinux2023
 
@@ -74,5 +75,6 @@ managedNodeGroups:
     volumeType: gp3
 
     tags:
-      Name: rt-app-cluster-2
+      Name: retail-app-node-2
+      Tier: workernode
       Workload: app

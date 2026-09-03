@@ -4,7 +4,7 @@ set -e
 
 REGION="ap-northeast-2"
 
-echo "[1/3] AWS에서 VPC 및 서브넷 ID 조회 중..."
+echo "[1/5] AWS에서 VPC 및 서브넷 ID 조회 중..."
 
 
 VPC_ID=$(aws ec2 describe-vpcs \
@@ -21,13 +21,13 @@ fi
 # VPC 내부에서 Name 태그 기준으로 Subnet ID 가져오기
 APP_a=$(aws ec2 describe-subnets \
   --region "$REGION" \
-  --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=retail-*-a" "Name=tag:Tier,Values=Private" "Name=tag:Purpose,Values=app" \
+  --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=retail-*-a" "Name=tag:Tier,Values=private" "Name=tag:Purpose,Values=app" \
   --query "Subnets[0].SubnetId" \
   --output text)
 
 APP_c=$(aws ec2 describe-subnets \
   --region "$REGION" \
-  --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=retail-*-c" "Name=tag:Tier,Values=Private" "Name=tag:Purpose,Values=app" \
+  --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=retail-*-c" "Name=tag:Tier,Values=private" "Name=tag:Purpose,Values=app" \
   --query "Subnets[0].SubnetId" \
   --output text)
 
@@ -42,16 +42,16 @@ echo " - APP_a  : $APP_a"
 echo " - APP_c  : $APP_c"
 
 
-echo "[2/3] cluster.yaml 생성 중..."
+echo "[2/5] cluster.yaml 생성 중..."
 
 
 envsubst '${VPC_ID} ${APP_a} ${APP_c}' < cluster.template.yaml > cluster.yaml
 
-echo "[3/3] 완료! cluster.yaml 파일이 생성되었습니다."
+echo "[3/5] 완료! cluster.yaml 파일이 생성되었습니다."
 
 # 클러스터 생성 (선택 사항)
-echo "[4/4] EKS 클러스터 생성 시작..."
-eksctl create cluster -f cluster.yaml
+echo "[4/5] EKS 클러스터 생성 시작..."
+eksctl create cluster -f cluster.yaml || true
 # 생성 완료 후 443 포트 추가
 echo "[5/5] EKS 클러스터 보안 그룹에 443 포트 오픈 중..."
 CLUSTER_SG=$(aws eks describe-cluster \
