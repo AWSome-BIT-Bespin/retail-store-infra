@@ -1,0 +1,78 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: retailstore-eks-cluster
+  region: ap-northeast-2
+  version: "1.34"
+
+iam:
+  withOIDC: true
+
+  vpcResourceControllerPolicy: true
+
+vpc:
+  id: ${VPC_ID} # vpc 바뀔때 마다 집어 넣어야함
+
+  clusterEndpoints:
+    publicAcess: true
+    privateAccess: true
+
+  publicAccessCIDRs:
+    - 0.0.0.0/0 # 학원 ip가 아니면 못들어가나여?
+
+  subnets:
+    private:
+      app-a:
+        id: ${APP_a}
+      app-c:
+        id: ${APP_c}
+
+managedNodeGroups:
+  - name: rt-app-node-1
+    instanceType: t3.large
+    amiFamily: AmazonLinux2023
+
+    minSize: 1
+    desiredCapacity: 1
+    maxSize: 2
+
+    subnets:
+      - app-a
+
+    privateNetworking: true
+
+    labels:
+      workload: app
+      node-role: app
+
+    volumeSize: 30
+    volumeType: gp3
+
+    tags:
+      Name: rt-cluster-1
+      Workload: app
+
+  - name: rt-app-node-2
+    instanceType: t3.large
+    amiFamily: AmazonLinux2023
+
+    minSize: 1
+    desiredCapacity: 1
+    maxSize: 2
+
+    subnets:
+      - app-c
+
+    privateNetworking: true
+
+    labels:
+      workload: app
+      node-role: app
+
+    volumeSize: 30
+    volumeType: gp3
+
+    tags:
+      Name: rt-app-cluster-2
+      Workload: app
