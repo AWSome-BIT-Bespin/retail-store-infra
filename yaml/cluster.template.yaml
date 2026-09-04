@@ -29,7 +29,7 @@ vpc:
         id: ${APP_c}
 
 managedNodeGroups:
-  - name: rt-app-node-1
+  - name: retail-app-node-1
     instanceType: t3.large
     amiFamily: AmazonLinux2023
 
