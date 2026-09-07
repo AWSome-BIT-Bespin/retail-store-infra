@@ -1,0 +1,37 @@
+# 실행되지 않는 dev 전용 import 예제.
+# .tf.example 확장자이므로 Terraform이 자동으로 읽지 않는다.
+# 대상 계정 350606136784 / ap-northeast-2 / default workspace /
+# S3 key infra/dev/terraform.tfstate를 확인한 뒤 사용한다.
+# 기존 state에 없는 다음 6개를 연결하기 위한 예제이며, 아직 import하지 않았다.
+
+# aws_default_route_table의 import ID는 라우팅 테이블 ID가 아닌 VPC ID다.
+import {
+  to = module.vpc.aws_default_route_table.public
+  id = "vpc-01d8242dcf61cada6"
+}
+
+import {
+  to = module.vpc.aws_eip.nat
+  id = "eipalloc-0e9db7d59e51e14a1"
+}
+
+import {
+  to = module.vpc.aws_nat_gateway.public
+  id = "nat-0c185896a2915ee5c"
+}
+
+import {
+  to = module.vpc.aws_route_table.private_app
+  id = "rtb-0040faf206ac1c8d3"
+}
+
+# 연결 리소스의 id 형식: subnet-id/route-table-id
+import {
+  to = module.vpc.aws_route_table_association.private_app_a
+  id = "subnet-0b9de371ddfce0902/rtb-0040faf206ac1c8d3"
+}
+
+import {
+  to = module.vpc.aws_route_table_association.private_app_b
+  id = "subnet-03cc434e11558e0d0/rtb-0040faf206ac1c8d3"
+}
