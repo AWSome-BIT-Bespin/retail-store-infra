@@ -1,8 +1,5 @@
-# # 이 파일을 /home/yong/project/eks.tf에 작성합니다.
-# # 기존 루트 main.tf의 AWS provider와 VPC 모듈을 함께 사용합니다.
-
 # # 1. EKS 서비스가 AWS 리소스를 관리할 때 사용할 IAM 역할
-# resource "aws_iam_role" "eks_cluster" {
+# resource "aws_iam_role" "cluster_role" {
 #   name = "retail-infra-eks-cluster-role"
 
 #   # EKS 서비스가 이 역할을 사용할 수 있도록 허용합니다.
@@ -18,14 +15,16 @@
 #   })
 # }
 
+
+
 # # 2. 위 역할에 EKS 운영에 필요한 AWS 관리형 정책을 연결
-# resource "aws_iam_role_policy_attachment" "eks_cluster" {
-#   role       = aws_iam_role.eks_cluster.name
+# resource "aws_iam_role_policy_attachment" "eks_cluster_attach_role" {
+#   role       = aws_iam_role.cluster_role.name
 #   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-# }
+# }w
 
 # # 3. EKS 클러스터 생성 (워커 노드는 나중에 추가)
-# resource "aws_eks_cluster" "retail" {
+# resource "aws_eks_cluster" "retail_cluster" {
 #   name     = "retail-infra-eks"
 #   version  = "1.36"
 #   role_arn = aws_iam_role.eks_cluster.arn
@@ -43,7 +42,12 @@
 
 #   vpc_config {
 #     # 기존 VPC의 앱용 private 서브넷 두 개
-#     subnet_ids = module.vpc.private_app_subnet_ids
+#     subnet_ids = [ 
+#     module.vpc.aws_subnet.private-app-a.id,
+#     module.vpc.aws_subnet.private-app-a.id
+#     ]
+
+
 
 #     endpoint_public_access  = true
 #     endpoint_private_access = true
