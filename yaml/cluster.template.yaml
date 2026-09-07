@@ -28,6 +28,9 @@ vpc:
       app-c:
         id: ${APP_c}
 
+addons:
+  - name: metrics-server
+
 managedNodeGroups:
   - name: retail-app-node-1
     instanceType: t3.large
