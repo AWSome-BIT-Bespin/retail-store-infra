@@ -55,7 +55,7 @@ managedNodeGroups:
     tags:
       Name: retail-app-node-1
       Tier: workernode
-      Workload: app
+      Workload: app-a
 
   - name: retail-app-node-2
     instanceType: t3.large
@@ -80,4 +80,4 @@ managedNodeGroups:
     tags:
       Name: retail-app-node-2
       Tier: workernode
-      Workload: app
+      Workload: app-c
