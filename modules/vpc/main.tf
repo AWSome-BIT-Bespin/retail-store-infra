@@ -190,3 +190,10 @@ resource "aws_route_table_association" "private_db_b" {
 #     Name = "allow_tls"
 #   }
 # }
+
+output "private_app_subnet_ids" {
+  value = [
+    aws_subnet.private-app-a.id,
+    aws_subnet.private-app-b.id,
+  ]
+}
