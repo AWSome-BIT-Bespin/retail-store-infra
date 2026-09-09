@@ -22,3 +22,12 @@ resource "aws_eks_addon" "retail_coredns" {
     aws_eks_addon.retail_kube_proxy,
   ]
 }
+
+resource "aws_eks_addon" "pod_identity_agent" {
+  cluster_name = aws_eks_cluster.retail_cluster.name
+  addon_name   = "eks-pod-identity-agent"
+
+  depends_on = [
+    aws_eks_node_group.retail_ng,
+  ]
+}
