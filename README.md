@@ -1,78 +1,98 @@
 # retail-store-infra
 
-현재 AWS에 있는 retail-vpc 네트워크를 표현한 Terraform 코드입니다.
-코드 작성과 로컬 검증까지만 진행했으며, 기존 AWS 리소스의 import 및 apply는 실행하지 않았습니다.
+AWSome-BIT-Bespin의 AWS 기반 인프라를 Terraform으로 관리합니다. 실제 WSL 작업 경로는 `/home/yong/project`입니다.
+VPC·EKS·PostgreSQL을 세 모듈로 나누고, 루트에서는 모듈 연결과 환경값을 관리합니다.
 
-## 대상 환경
+## 저장소별 담당 범위
 
-- AWS 계정: 350606136784
-- 리전: ap-northeast-2
-- VPC: retail-vpc (`vpc-01d8242dcf61cada6`, `10.0.0.0/16`)
-- Workspace: default
-- S3 bucket: `retail-terraform-state-350606136784-ap-northeast-2-an`
-- Dev state key: `infra/dev/terraform.tfstate` (`backend-dev.hcl`)
-- 검증 환경: Terraform 1.16.1, AWS provider 6.62.0 (`.terraform.lock.hcl`)
-
-이 코드는 현재 dev 리소스를 기준으로 작성했습니다.
-`backend-infra.hcl`은 `infra/prod/terraform.tfstate`를 가리키지만,
-backend 파일을 바꾸는 것만으로 리소스 이름, CIDR, 환경이 prod로 전환되지는 않습니다.
-이 dev import 예제를 다른 state에 사용하지 마세요.
-
-## 코드에 반영한 기존 구성
-
-- Public 서브넷 2개는 VPC 기본 라우팅 테이블을 암묵적으로 사용합니다.
-  기본 인터넷 경로는 IGW를 가리키며, 별도 public 라우팅 테이블과 명시적 서브넷 연결은 추가하지 않았습니다.
-- NAT는 public-a 서브넷의 기존 Zonal NAT 1개와 기존 EIP를 표현합니다.
-  AWS의 Name 태그 `retali-nat`도 그대로 유지합니다.
-- APP 서브넷 2개는 `retail-Nat-rt`를 통해 같은 NAT를 사용합니다.
-- DB 서브넷 2개는 기존 DB 라우팅 테이블을 사용하며 인터넷 기본 경로가 없습니다.
-- 기존 IGW 태그와 public 서브넷의 `kubernetes.io/role/elb=1` 태그를 코드에 반영했습니다.
-- EKS/eksctl/CloudFormation 리소스와 Bastion은 이번 네트워크 코드 작성 범위에 포함하지 않았습니다.
-
-## 코드와 state의 차이
-
-2026-09-05 확인 시 기존 dev state에는 관리 리소스 11개가 있습니다.
-VPC, 서브넷 6개, IGW, DB 라우팅 테이블, DB 서브넷 연결 2개입니다.
-
-수정한 코드는 관리 리소스 17개를 선언합니다.
-아래 6개는 AWS에 존재하지만 현재 dev state에는 없어, 나중에 기존 리소스와 연결해야 합니다.
-
-| Terraform 주소 | 기존 AWS 리소스 |
+| 저장소 | 관리할 내용 |
 | --- | --- |
-| `module.vpc.aws_default_route_table.public` | `rtb-020f70506bad49c48` (import ID는 VPC ID) |
-| `module.vpc.aws_eip.nat` | `eipalloc-0e9db7d59e51e14a1` |
-| `module.vpc.aws_nat_gateway.public` | `nat-0c185896a2915ee5c` |
-| `module.vpc.aws_route_table.private_app` | `rtb-0040faf206ac1c8d3` |
-| `module.vpc.aws_route_table_association.private_app_a` | app-a → `retail-Nat-rt` |
-| `module.vpc.aws_route_table_association.private_app_b` | app-b → `retail-Nat-rt` |
+| [retail-store-infra](https://github.com/AWSome-BIT-Bespin/retail-store-infra) | VPC, subnet, routing, NAT, EKS, Node Group, EKS managed add-ons, RDS, Security Group, IAM 및 향후 ECR·ACM·Route 53·앱 AWS 권한 |
+| [retail-store-gitops](https://github.com/AWSome-BIT-Bespin/retail-store-gitops) | Helm values/chart, Deployment, Service, Ingress, Namespace, HPA/PDB, 컨트롤러 설치 설정, Secret 참조 및 Argo CD Application |
+| [retail-store-app](https://github.com/AWSome-BIT-Bespin/retail-store-app) | 애플리케이션 소스, 테스트, Dockerfile, 빌드·이미지 게시 CI |
 
-`imports-dev.tf.example`에 해당 6개의 import 블록을 적었습니다.
-확장자가 `.tf.example`이므로 Terraform은 이 파일을 자동으로 읽지 않습니다.
+Terraform은 AWS API로 클러스터와 외부 서비스를 구성합니다. GitOps 컨트롤러는 Kubernetes API로 클러스터 내부 배포 상태를 맞춥니다.
+ALB/NLB의 실제 생성은 AWS Load Balancer Controller가 담당하고 Terraform에서는 그 컨트롤러의 IAM 권한 등을 준비합니다.
+같은 ALB를 Terraform `aws_lb`로도 선언하지 않습니다.
 
-기존 리소스를 등록하기로 결정한 뒤에는 계정, backend, workspace 및 다른 state의 중복 관리 여부를 확인하고
-현재 state를 안전한 위치에 백업합니다. 이후 이 예제를 프로젝트 루트의 `imports-dev.tf`로 복사해
-`terraform plan`으로 실제 변경 내용을 검토할 수 있습니다.
-이 설명은 후속 작업 안내이며, 이번에는 복사·plan·import·apply를 실행하지 않았습니다.
+현재 구현된 모듈은 VPC, EKS, RDS입니다. ECR/ACM/Route 53/앱 IAM 및 GitOps 부트스트랩은 아직 추가하지 않았습니다.
+리팩터링과 신규 AWS 리소스 도입을 같은 변경으로 섞지 않습니다.
 
-기존 리소스를 보존하는 것이 목적이므로 import 외 생성·수정·삭제가 나타나면 먼저 원인을 확인해야 합니다.
-특히 `aws_default_route_table`은 import 없이 처음 관리 대상으로 채택하면 기존 경로를 지우고
-코드의 경로를 다시 작성할 수 있습니다. 기존 기본 테이블을 import하기 전에 바로 apply하지 마세요.
-코드 작성만으로 기존 NAT와 EIP가 state에 자동 등록되는 것도 아닙니다.
+## 디렉터리
 
-## 로컬 검증
-
-이미 provider와 모듈이 설치된 프로젝트에서 다음 명령으로 형식과 구성의 유효성을 검사합니다.
-
-```bash
-terraform fmt -check -recursive
-terraform validate -no-color
+```text
+.
+├── main.tf                  # VPC -> EKS / RDS 연결
+├── variables.tf             # 환경 입력의 자료형·검증
+├── terraform.tfvars         # 현재 환경값, 비밀값 없음
+├── versions.tf              # Terraform 및 AWS provider 버전
+├── providers.tf             # AWS 리전
+├── backend.tf               # 기존 S3 backend 공통값
+├── backend-infra.hcl        # 현재 prod state key
+├── backend-dev.hcl          # 과거 dev state key, 현재 root에서 전환하지 않음
+├── moved.tf                 # 기존 루트 리소스 16개의 주소 이동 이력
+├── outputs.tf               # 팀 전달값
+├── Makefile                 # fmt / check / init / plan
+├── modules/
+│   ├── vpc/                 # VPC·서브넷·NAT·라우팅
+│   ├── eks/                 # EKS·IAM·접근 권한·노드·애드온
+│   └── rds/                 # DB·subnet group·DB 보안 그룹
+└── docs/
+    ├── migration.md         # 리팩터링 반영·state 확인
+    └── ownership.md         # 팀 업무 경계와 GitOps 전달 절차
 ```
 
-이 검사는 AWS 리소스 생성·변경·삭제를 실행하지 않습니다.
-`validate` 통과는 실제 AWS와의 차이가 없다는 보장이 아니며, 그 차이는 후속 plan 검토가 필요합니다.
+각 모듈의 `variables.tf`는 입력, `outputs.tf`는 외부에 전달할 값입니다.
+같은 모듈 안에서만 사용할 리소스 ID는 직접 참조하고, 모듈 사이에서는 입력/output으로 연결합니다.
+`.tf` 파일을 역할별로 나누는 것은 가독성을 위한 것이며 state가 나뉘지는 않습니다.
+SG나 IAM 역할 하나마다 모듈을 만들지 않고, EKS 또는 RDS의 수명 주기에 맞춰 같은 모듈 안에 둡니다.
 
-## 참고
+## 환경값 변경
 
-- [기본 라우팅 테이블과 import](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/default_route_table)
-- [NAT Gateway](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/nat_gateway)
-- [라우팅 테이블 연결의 import 형식](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table_association)
+대부분의 변경은 `terraform.tfvars`에서 합니다.
+
+| 변경할 내용 | 입력값 |
+| --- | --- |
+| API 접속 가능 네트워크 | `eks_public_access_cidrs` |
+| 관리자 IAM 주체 | `eks_admin_principal_arn` |
+| 노드 수·유형 | `eks_node_scaling`, `eks_node_instance_types` |
+| 애드온 버전 고정 | `eks_addon_versions` |
+| DB 버전·사양 | `rds_engine_version`, `rds_instance_class` |
+| DB 고가용성·백업·삭제 정책 | `rds_multi_az`, `rds_backup_retention_period`, `rds_deletion_protection`, `rds_skip_final_snapshot` |
+| DB 접근 허용 | `rds_client_security_group_ids` |
+
+현재 설정은 원래 코드의 동작을 보존합니다. DB 접근 규칙은 빈 집합이며, EKS API CIDR은 `0.0.0.0/0`입니다.
+앱 접속을 열 때에는 실제 Pod/노드 ENI의 SG를 확인해 넣고, 관리자 접속망 CIDR도 팀 운영 방식에 맞춰 별도로 제한하세요.
+`rds_skip_final_snapshot=false`로 바꾸면 `rds_final_snapshot_identifier`도 지정해야 합니다.
+
+현재 `worldload` 노드 라벨 키와 일부 dev 이름 태그도 보존했습니다. 기존 selector와 리소스 변경을 검토한 후 별도 변경으로 정리하세요.
+`availability_zones=[]`는 기존의 AZ 자동 선택을 유지합니다. 첫 검토에서 확인된 AZ 두 개를 이후 명시적으로 고정할 수 있습니다.
+
+## 일상 작업
+
+```bash
+cd /home/yong/project
+terraform init -lockfile=readonly -backend-config=backend-infra.hcl
+terraform fmt -recursive
+terraform validate
+terraform plan -out=review.tfplan
+terraform show review.tfplan
+```
+
+실제 변경을 검토하고 반영할 때만 `terraform apply review.tfplan`을 실행합니다.
+생성된 plan, state, 비밀번호를 Git에 넣지 않습니다. `.terraform.lock.hcl`은 Git에 유지합니다.
+현재 state 위치를 처음 확인하거나 모듈 이동을 반영할 때는 [migration.md](docs/migration.md)를 먼저 읽으세요.
+
+## 현재 state
+
+- 리전: `ap-northeast-2`
+- workspace: `default`
+- S3 bucket: `retail-terraform-state-350606136784-ap-northeast-2-an`
+- 현재 key: `infra/prod/terraform.tfstate`
+
+모듈별 state 분리는 하지 않았습니다. 현재 규모에서는 모듈 간 연결과 변경 검토를 한 plan으로 유지하는 편이 단순합니다.
+dev를 실제로 추가할 때에는 별도 `environments/dev` root와 입력값·backend·리소스 이름/CIDR을 구성하세요.
+backend key만 dev로 바꾸면 동일 이름의 AWS 리소스를 다른 state에서 다시 만들려 할 수 있습니다.
+S3 state bucket 자체를 그 bucket을 사용하는 이 root에 추가하지 않습니다. 향후 bootstrap root에서 별도 관리합니다.
+
+공식 참고: [Terraform 모듈 구조](https://developer.hashicorp.com/terraform/language/modules/develop/structure), [리소스 주소 이동](https://developer.hashicorp.com/terraform/language/modules/develop/refactoring).

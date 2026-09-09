@@ -3,5 +3,15 @@
 *.tfstate.*
 *.tfplan
 tfplan
-destroy.tfplan
+*.plan.json
 crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+*.secret.tfvars
+*.secret.tfvars.json
+.env
+.env.*
+!.env.example
