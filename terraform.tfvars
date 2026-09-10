@@ -63,3 +63,7 @@ rds_final_snapshot_identifier = null
 rds_client_security_group_ids = []
 
 rds_tags = { Name = "retail-infra-postgres", Project = "retail-infra", ManagedBy = "Terraform" }
+
+
+bastion_admin_cidr = "0.0.0.0/0" # 예시: 내 PC 공인 IP로 변경
+bastion_key_name   = "code-server"     # 기존 EC2 키 페어 이름
