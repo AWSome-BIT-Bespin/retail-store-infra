@@ -5,7 +5,7 @@ set -Eeuo pipefail
 # The retail application itself remains managed by GitOps with:
 #   values.yaml + values-dev-rds.yaml
 
-CLUSTER_NAME="${CLUSTER_NAME:-retailstore-eks-cluster}"
+CLUSTER_NAME="${CLUSTER_NAME:-retail-infra-eks}"
 AWS_REGION="${AWS_REGION:-ap-northeast-2}"
 KUBE_NAMESPACE="${KUBE_NAMESPACE:-kube-system}"
 
@@ -15,7 +15,7 @@ HELM_INSTALL_DIR="${HELM_INSTALL_DIR:-/usr/local/bin}"
 AWS_LBC_VERSION="${AWS_LBC_VERSION:-v3.5.0}"
 AWS_LBC_CHART_VERSION="${AWS_LBC_CHART_VERSION:-3.5.0}"
 
-CLUSTER_AUTOSCALER_VERSION="${CLUSTER_AUTOSCALER_VERSION:-v1.34.4}"
+CLUSTER_AUTOSCALER_VERSION="${CLUSTER_AUTOSCALER_VERSION:-v1.36.0}"
 CLUSTER_AUTOSCALER_CHART_VERSION="${CLUSTER_AUTOSCALER_CHART_VERSION:-9.59.0}"
 
 AWS_LBC_POLICY_VERSION="${AWS_LBC_VERSION#v}"
@@ -270,6 +270,7 @@ helm upgrade --install aws-load-balancer-controller \
   --set "vpcId=${VPC_ID}" \
   --set serviceAccount.create=false \
   --set serviceAccount.name=aws-load-balancer-controller \
+  --set-string 'ingressClassParams.spec.subnets.tags.Tier[0]=public' \
   --wait \
   --timeout 10m
 
