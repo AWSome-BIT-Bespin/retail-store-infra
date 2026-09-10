@@ -5,6 +5,12 @@ module "vpc" {
   subnet_cidrs       = var.subnet_cidrs
 }
 
+
+# module "bastion" {
+#   source = "./modules/bastion"
+#   eks_cluster_arn = module.eks.cluster_arn
+# }  확인 후 추가 예정
+
 #모듈이 받는 이름 
 module "eks" {
   source              = "./modules/eks"
@@ -14,6 +20,7 @@ module "eks" {
   cluster_role_name   = var.eks_cluster_role_name
   node_role_name      = var.eks_node_role_name
   admin_principal_arn = var.eks_admin_principal_arn
+  bastion_principal_arn = module.bastion.role_arn //추가 예정 
   public_access_cidrs = var.eks_public_access_cidrs
   node_group_name     = var.eks_node_group_name
   node_scaling        = var.eks_node_scaling
@@ -22,6 +29,7 @@ module "eks" {
   cluster_tags        = var.eks_cluster_tags
   addon_versions      = var.eks_addon_versions
 }
+
 
 module "rds" {
   source                    = "./modules/rds"

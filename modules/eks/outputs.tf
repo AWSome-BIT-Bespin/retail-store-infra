@@ -14,3 +14,8 @@ output "node_role_arn" {
   description = "EC2 노드 IAM 역할 ARN. 앱 전용 IAM 역할과 구분하세요."
   value       = aws_iam_role.retail_nodes.arn
 }
+
+
+# output "cluster_arn" {
+#   value = aws_eks_cluster.retail_cluster.arn
+# } 확인 후 추가 예정

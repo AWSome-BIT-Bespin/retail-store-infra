@@ -74,3 +74,8 @@ variable "subnet_ids" {
   description = "서로 다른 AZ의 앱용 private 서브넷 ID."
   type        = list(string)
 }
+
+variable "bastion_principal_arn" {
+  description = "EKS 접근을 허용할 Bastion IAM 역할 ARN"
+  type        = string
+}
