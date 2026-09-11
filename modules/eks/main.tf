@@ -20,7 +20,8 @@ resource "aws_eks_cluster" "retail_cluster" {
 
     endpoint_public_access  = true
     endpoint_private_access = true
-
+    
+    security_group_ids = [aws_security_group.cp_sg.id]
     #네트워크가 바뀌면 수정하세요.
     public_access_cidrs = var.public_access_cidrs
   }

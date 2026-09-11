@@ -31,3 +31,6 @@ resource "aws_eks_addon" "pod_identity_agent" {
     aws_eks_node_group.retail_ng,
   ]
 }
+
+
+//메트릭 서버, alb controller, cluster autoscaling -> node (

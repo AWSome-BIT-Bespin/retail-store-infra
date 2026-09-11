@@ -16,6 +16,6 @@ output "node_role_arn" {
 }
 
 
-# output "cluster_arn" {
-#   value = aws_eks_cluster.retail_cluster.arn
-# } 확인 후 추가 예정
+output "cluster_arn" {
+  value = aws_eks_cluster.retail_cluster.arn
+} 

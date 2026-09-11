@@ -14,15 +14,15 @@ resource "aws_iam_role" "bastion" {
   })
 }
 
-resource "aws_iam_role_policy" "describe_eks" {
-  name = "describe-target-eks"
+resource "aws_iam_role_policy" "admin_eks" {
+  name = "admin-target-eks"
   role = aws_iam_role.bastion.name
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Effect   = "Allow"
-      Action   = "eks:DescribeCluster"
+      Action = "eks:*"
       Resource = var.eks_cluster_arn
     }]
   })
@@ -39,4 +39,8 @@ output "role_arn" {
 
 output "role_name" {
   value = aws_iam_role.bastion.name
+}
+
+output "instance_profile_name" {
+  value = aws_iam_instance_profile.bastion.name
 }

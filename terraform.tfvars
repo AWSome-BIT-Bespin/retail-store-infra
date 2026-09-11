@@ -46,7 +46,7 @@ rds_instance_class = "db.t4g.micro"
 
 rds_allocated_storage = 20
 
-rds_database_name = "retail"
+rds_database_name = "retail"  #<-- orders로 변경할껏 !!
 
 rds_master_username = "dbadmin"
 

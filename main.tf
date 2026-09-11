@@ -6,10 +6,12 @@ module "vpc" {
 }
 
 
-# module "bastion" {
-#   source = "./modules/bastion"
-#   eks_cluster_arn = module.eks.cluster_arn
-# }  확인 후 추가 예정
+module "bastion" {
+  source = "./modules/bastion"
+  bastion_role_name = "retail-bastion-role"
+  vpc_id          = module.vpc.vpc_id
+  eks_cluster_arn = module.eks.cluster_arn
+}  
 
 #모듈이 받는 이름 
 module "eks" {
@@ -28,6 +30,7 @@ module "eks" {
   node_labels         = var.eks_node_labels
   cluster_tags        = var.eks_cluster_tags
   addon_versions      = var.eks_addon_versions
+  vpc_id = module.vpc.vpc_id
 }
 
 
@@ -139,4 +142,35 @@ resource "aws_instance" "bastion" {
 
 output "bastion_public_ip" {
   value = aws_instance.bastion.public_ip
+}
+
+
+resource "aws_instance" "bastion2" {
+  ami           = data.aws_ssm_parameter.bastion_ami.value
+  instance_type = "t3.large"
+
+  subnet_id                   = module.vpc.public_subnet_ids[0]
+  associate_public_ip_address = true
+  vpc_security_group_ids      = [aws_security_group.bastion.id]
+  key_name                    = var.bastion_key_name
+
+  root_block_device {
+    volume_size = 20
+    volume_type = "gp3"
+    encrypted   = true
+  }
+
+  metadata_options {
+    http_endpoint = "enabled"
+    http_tokens   = "required"
+  }
+
+  tags = {
+    Name      = "retail-bastion2"
+    ManagedBy = "Terraform"
+  }
+}
+
+output "bastion_public_ip2" {
+  value = aws_instance.bastion2.public_ip
 }

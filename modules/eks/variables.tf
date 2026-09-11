@@ -79,3 +79,12 @@ variable "bastion_principal_arn" {
   description = "EKS 접근을 허용할 Bastion IAM 역할 ARN"
   type        = string
 }
+
+variable "vpc_id" {
+  
+  type        = string
+}
+
+# variable "cp_sg.id" {
+#   type        = string
+# }
