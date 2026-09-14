@@ -51,3 +51,28 @@ resource "aws_iam_role_policy_attachment" "retail_cni_policy" {
   role       = aws_iam_role.retail_nodes.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
 }
+
+
+resource "aws_iam_role" "retail-alb-controller-role" {
+  name = "retail-alb-controller-role"
+
+  assume_role_policy = jsondecode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Sid = ""
+        Principal = {
+          Service = "pods.eks.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_policy_document" "retail-alb-controller-policy"{
+
+  role = aws_iam_role.retail-alb-controller-role
+  policy = "arn:aws:iam::aws:policy/AWSLoadBalancerControllerIAMPolicy"
+}

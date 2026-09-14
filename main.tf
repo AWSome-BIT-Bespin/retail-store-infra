@@ -145,32 +145,3 @@ output "bastion_public_ip" {
 }
 
 
-resource "aws_instance" "bastion2" {
-  ami           = data.aws_ssm_parameter.bastion_ami.value
-  instance_type = "t3.large"
-
-  subnet_id                   = module.vpc.public_subnet_ids[0]
-  associate_public_ip_address = true
-  vpc_security_group_ids      = [aws_security_group.bastion.id]
-  key_name                    = var.bastion_key_name
-
-  root_block_device {
-    volume_size = 20
-    volume_type = "gp3"
-    encrypted   = true
-  }
-
-  metadata_options {
-    http_endpoint = "enabled"
-    http_tokens   = "required"
-  }
-
-  tags = {
-    Name      = "retail-bastion2"
-    ManagedBy = "Terraform"
-  }
-}
-
-output "bastion_public_ip2" {
-  value = aws_instance.bastion2.public_ip
-}
