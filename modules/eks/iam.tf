@@ -56,11 +56,11 @@ resource "aws_iam_role_policy_attachment" "retail_cni_policy" {
 resource "aws_iam_role" "retail-alb-controller-role" {
   name = "retail-alb-controller-role"
 
-  assume_role_policy = jsondecode({
+  assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Action = "sts:AssumeRole"
+        Action = "sts:AssumeRole", "sts:TagSession"
         Effect = "Allow"
         Sid = ""
         Principal = {
@@ -71,8 +71,8 @@ resource "aws_iam_role" "retail-alb-controller-role" {
   })
 }
 
-resource "aws_iam_policy_document" "retail-alb-controller-policy"{
+resource "aws_iam_role_policy_attachment" "retail-alb-controller-policy"{
 
-  role = aws_iam_role.retail-alb-controller-role
-  policy = "arn:aws:iam::aws:policy/AWSLoadBalancerControllerIAMPolicy"
+  role = aws_iam_role.retail-alb-controller-role.name
+  policy_arn = "arn:aws:iam::350606136784:policy/AWSLoadBalancerControllerIAMPolicy"
 }
