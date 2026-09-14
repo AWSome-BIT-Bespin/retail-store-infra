@@ -5,7 +5,7 @@ set -Eeuo pipefail
 # The retail application itself remains managed by GitOps with:
 #   values.yaml + values-dev-rds.yaml
 
-CLUSTER_NAME="${CLUSTER_NAME:-retail-infra-eks}"
+CLUSTER_NAME="${CLUSTER_NAME:-retail-eks-cluster}"
 AWS_REGION="${AWS_REGION:-ap-northeast-2}"
 KUBE_NAMESPACE="${KUBE_NAMESPACE:-kube-system}"
 

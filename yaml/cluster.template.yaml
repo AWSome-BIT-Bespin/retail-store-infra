@@ -2,9 +2,9 @@ apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
 
 metadata:
-  name: retailstore-eks-cluster
+  name: retail-eks-cluster
   region: ap-northeast-2
-  version: "1.34"
+  version: "1.36"
 
 iam:
   withOIDC: true
@@ -28,10 +28,35 @@ vpc:
       app-c:
         id: ${APP_c}
 
-addons:
-  - name: metrics-server
-
 managedNodeGroups:
+  - name: retail-mgmt-node
+    instanceType: t3.medium
+    amiFamily: AmazonLinux2023
+
+    minSize: 2
+    desiredCapacity: 2
+    maxSize: 2
+
+    subnets:
+      - app-a
+      - app-c
+
+    labels:
+      workload: mgmt
+      node-role: mgmt
+    taints:
+      - key: dedicated
+        value: mgmt
+        effect: NoSchedule
+
+    volumeSize: 30
+    volumeType: gp3
+
+    tags:
+      Name: retail-mgmt-node
+      Tier: workernode
+      Workload: mgmt
+
   - name: retail-app-node-1
     instanceType: t3.large
     amiFamily: AmazonLinux2023
@@ -46,8 +71,8 @@ managedNodeGroups:
     privateNetworking: true
 
     labels:
-      workload: app
-      node-role: app
+      workload: app-a
+      node-role: app-a
 
     volumeSize: 30
     volumeType: gp3
@@ -71,8 +96,8 @@ managedNodeGroups:
     privateNetworking: true
 
     labels:
-      workload: app
-      node-role: app
+      workload: app-c
+      node-role: app-c
 
     volumeSize: 30
     volumeType: gp3
@@ -81,3 +106,14 @@ managedNodeGroups:
       Name: retail-app-node-2
       Tier: workernode
       Workload: app-c
+
+addons:
+  - name: metrics-server
+    configurationValues: |
+      nodeSelector:
+        workload: mgmt
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: mgmt
+          effect: NoSchedule

@@ -55,7 +55,7 @@ eksctl create cluster -f cluster.yaml || true
 # 생성 완료 후 443 포트 추가
 echo "[5/5] EKS 클러스터 보안 그룹에 443 포트 오픈 중..."
 CLUSTER_SG=$(aws eks describe-cluster \
-  --name "retailstore-eks-cluster" \
+  --name "retail-eks-cluster" \
   --region "$REGION" \
   --query "cluster.resourcesVpcConfig.clusterSecurityGroupId" \
   --output text)
