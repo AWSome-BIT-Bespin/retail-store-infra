@@ -41,6 +41,8 @@ managedNodeGroups:
       - app-a
       - app-c
 
+    privateNetworking: true
+
     labels:
       workload: mgmt
       node-role: mgmt
