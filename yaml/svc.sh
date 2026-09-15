@@ -8,6 +8,10 @@ set -Eeuo pipefail
 CLUSTER_NAME="${CLUSTER_NAME:-retail-eks-cluster}"
 AWS_REGION="${AWS_REGION:-ap-northeast-2}"
 KUBE_NAMESPACE="${KUBE_NAMESPACE:-kube-system}"
+APP_NAMESPACE="${APP_NAMESPACE:-retail-store}"
+ESO_NAMESPACE="${ESO_NAMESPACE:-external-secrets}"
+CART_SERVICE_ACCOUNT="${CART_SERVICE_ACCOUNT:-carts-dynamo}"
+CART_TABLE_NAME="${CART_TABLE_NAME:-retail-store-cart}"
 
 HELM_VERSION="${HELM_VERSION:-v3.21.4}"
 HELM_INSTALL_DIR="${HELM_INSTALL_DIR:-/usr/local/bin}"
@@ -25,6 +29,10 @@ CLUSTER_AUTOSCALER_POLICY_VERSION="${CLUSTER_AUTOSCALER_POLICY_VERSION//./-}"
 
 AWS_LBC_POLICY_NAME="${AWS_LBC_POLICY_NAME:-AWSLoadBalancerControllerIAMPolicy-${AWS_LBC_POLICY_VERSION}}"
 CLUSTER_AUTOSCALER_POLICY_NAME="${CLUSTER_AUTOSCALER_POLICY_NAME:-ClusterAutoscalerPolicy-${CLUSTER_NAME}-${CLUSTER_AUTOSCALER_POLICY_VERSION}}"
+
+ESO_CHART_VERSION="${ESO_CHART_VERSION:-2.10.0}"
+ESO_POLICY_NAME="${ESO_POLICY_NAME:-RetailStoreESOReadPolicy-${CLUSTER_NAME}-v1}"
+CART_POLICY_NAME="${CART_POLICY_NAME:-RetailStoreCartDynamoDBPolicy-${CLUSTER_NAME}-v1}"
 
 WORK_DIR=""
 
@@ -95,12 +103,13 @@ ensure_iam_policy() {
 ensure_irsa_service_account() {
   local service_account_name="$1"
   local policy_arn="$2"
+  local service_account_namespace="${3:-${KUBE_NAMESPACE}}"
 
-  log "IRSA ServiceAccount 구성: ${service_account_name}"
+  log "IRSA ServiceAccount 구성: ${service_account_namespace}/${service_account_name}"
   eksctl create iamserviceaccount \
     --cluster "${CLUSTER_NAME}" \
     --region "${AWS_REGION}" \
-    --namespace "${KUBE_NAMESPACE}" \
+    --namespace "${service_account_namespace}" \
     --name "${service_account_name}" \
     --attach-policy-arn "${policy_arn}" \
     --override-existing-serviceaccounts \
@@ -192,6 +201,57 @@ eksctl utils associate-iam-oidc-provider \
 
 AWS_LBC_POLICY_FILE="${WORK_DIR}/aws-load-balancer-controller-policy.json"
 CLUSTER_AUTOSCALER_POLICY_FILE="${WORK_DIR}/cluster-autoscaler-policy.json"
+ESO_POLICY_FILE="${WORK_DIR}/external-secrets-policy.json"
+CART_POLICY_FILE="${WORK_DIR}/cart-dynamodb-policy.json"
+
+cat >"${ESO_POLICY_FILE}" <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadRetailParameters",
+      "Effect": "Allow",
+      "Action": ["ssm:GetParameter"],
+      "Resource": "arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/retail-store/*"
+    },
+    {
+      "Sid": "ReadRetailSecrets",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret"
+      ],
+      "Resource": "arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:retail-store/*"
+    }
+  ]
+}
+EOF
+
+cat >"${CART_POLICY_FILE}" <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadWriteCartItems",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:Query"
+      ],
+      "Resource": "arn:aws:dynamodb:${AWS_REGION}:${AWS_ACCOUNT_ID}:table/${CART_TABLE_NAME}"
+    },
+    {
+      "Sid": "QueryCartIndexes",
+      "Effect": "Allow",
+      "Action": ["dynamodb:Query"],
+      "Resource": "arn:aws:dynamodb:${AWS_REGION}:${AWS_ACCOUNT_ID}:table/${CART_TABLE_NAME}/index/*"
+    }
+  ]
+}
+EOF
 
 log "AWS Load Balancer Controller ${AWS_LBC_VERSION} IAM 정책 다운로드"
 curl -fsSL -o "${AWS_LBC_POLICY_FILE}" \
@@ -241,6 +301,12 @@ AWS_LBC_POLICY_ARN="$(ensure_iam_policy \
 CLUSTER_AUTOSCALER_POLICY_ARN="$(ensure_iam_policy \
   "${CLUSTER_AUTOSCALER_POLICY_NAME}" \
   "${CLUSTER_AUTOSCALER_POLICY_FILE}")"
+ESO_POLICY_ARN="$(ensure_iam_policy \
+  "${ESO_POLICY_NAME}" \
+  "${ESO_POLICY_FILE}")"
+CART_POLICY_ARN="$(ensure_iam_policy \
+  "${CART_POLICY_NAME}" \
+  "${CART_POLICY_FILE}")"
 
 ensure_irsa_service_account \
   "aws-load-balancer-controller" \
@@ -249,11 +315,25 @@ ensure_irsa_service_account \
   "cluster-autoscaler" \
   "${CLUSTER_AUTOSCALER_POLICY_ARN}"
 
+log "애플리케이션 네임스페이스 준비: ${APP_NAMESPACE}"
+kubectl create namespace "${APP_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+
+ensure_irsa_service_account \
+  "eso-secrets-reader" \
+  "${ESO_POLICY_ARN}" \
+  "${APP_NAMESPACE}"
+
+ensure_irsa_service_account \
+  "${CART_SERVICE_ACCOUNT}" \
+  "${CART_POLICY_ARN}" \
+  "${APP_NAMESPACE}"
+
 tag_managed_nodegroups_for_autodiscovery
 
 log "Helm 저장소 등록"
 helm repo add eks https://aws.github.io/eks-charts --force-update
 helm repo add autoscaler https://kubernetes.github.io/autoscaler --force-update
+helm repo add external-secrets https://charts.external-secrets.io --force-update
 helm repo update
 
 log "AWS Load Balancer Controller CRD 적용"
@@ -290,16 +370,48 @@ helm upgrade --install cluster-autoscaler \
   --wait \
   --timeout 10m
 
+log "External Secrets Operator 설치 또는 업그레이드"
+helm upgrade --install external-secrets \
+  external-secrets/external-secrets \
+  --namespace "${ESO_NAMESPACE}" \
+  --create-namespace \
+  --version "${ESO_CHART_VERSION}" \
+  --set installCRDs=true \
+  --set serviceAccount.create=true \
+  --set serviceAccount.name=external-secrets \
+  --wait \
+  --timeout 10m
+
+kubectl wait --for=condition=Established \
+  crd/secretstores.external-secrets.io \
+  crd/externalsecrets.external-secrets.io \
+  --timeout=120s
+
 log "컨트롤러 상태 확인"
 kubectl rollout status deployment/aws-load-balancer-controller \
   --namespace "${KUBE_NAMESPACE}" \
   --timeout=5m
-kubectl rollout status deployment/cluster-autoscaler \
+
+kubectl rollout status deployment \
   --namespace "${KUBE_NAMESPACE}" \
+  --selector=app.kubernetes.io/instance=cluster-autoscaler \
+  --timeout=5m
+
+kubectl rollout status deployment \
+  --namespace "${ESO_NAMESPACE}" \
+  --selector=app.kubernetes.io/instance=external-secrets \
   --timeout=5m
 
 kubectl get deployment \
-  aws-load-balancer-controller cluster-autoscaler \
-  --namespace "${KUBE_NAMESPACE}"
+  --namespace "${KUBE_NAMESPACE}" \
+  --selector='app.kubernetes.io/instance in (aws-load-balancer-controller,cluster-autoscaler)'
 
-log "설치가 완료되었습니다."
+kubectl get deployment \
+  --namespace "${ESO_NAMESPACE}" \
+  --selector=app.kubernetes.io/instance=external-secrets
+
+kubectl get serviceaccount \
+  "eso-secrets-reader" "${CART_SERVICE_ACCOUNT}" \
+  --namespace "${APP_NAMESPACE}"
+
+log "설치가 완료되었습니다. 다음으로 ESO.yaml과 ExternalSecret을 적용하세요."
