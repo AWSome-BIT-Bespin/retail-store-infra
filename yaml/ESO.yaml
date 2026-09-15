@@ -27,3 +27,58 @@ spec:
         jwt:
           serviceAccountRef:
             name: eso-secrets-reader
+---
+# Prerequisites: ESO, retail-store/eso-secrets-reader, and the two SecretStores in ESO.yaml.
+# AWS region: ap-northeast-2. Create the AWS source values before applying this file.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: orders-db
+  namespace: retail-store
+spec:
+  refreshPolicy: Periodic
+  refreshInterval: 1h
+  secretStoreRef:
+    name: retail-secrets-manager
+    kind: SecretStore
+  target:
+    name: orders-db
+    creationPolicy: Orphan
+    deletionPolicy: Retain
+  data:
+    - secretKey: RETAIL_ORDERS_PERSISTENCE_USERNAME
+      remoteRef:
+        key: retail-store/orders
+        property: username
+    - secretKey: RETAIL_ORDERS_PERSISTENCE_PASSWORD
+      remoteRef:
+        key: retail-store/orders
+        property: password
+    # Override the default store for the endpoint: read this key from Parameter Store.
+    - secretKey: RETAIL_ORDERS_PERSISTENCE_ENDPOINT
+      remoteRef:
+        key: /retail-store/orders/endpoint
+      sourceRef:
+        storeRef:
+          name: retail-parameter-store
+          kind: SecretStore
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: retail-redis
+  namespace: retail-store
+spec:
+  refreshPolicy: Periodic
+  refreshInterval: 1h
+  secretStoreRef:
+    name: retail-parameter-store
+    kind: SecretStore
+  target:
+    name: retail-redis
+    creationPolicy: Orphan
+    deletionPolicy: Retain
+  data:
+    - secretKey: url
+      remoteRef:
+        key: /retail-store/redis/url
