@@ -28,7 +28,7 @@ resource "aws_iam_role" "retail_nodes" {
       Effect = "Allow"
 
       # EC2가 이 역할을 사용할 수 있도록 허용
-      Principal = {
+      Principal = {   
         Service = "ec2.amazonaws.com"
       }
 
@@ -58,21 +58,25 @@ resource "aws_iam_role" "retail-alb-controller-role" {
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole", "sts:TagSession"
-        Effect = "Allow"
-        Sid = ""
-        Principal = {
-          Service = "pods.eks.amazonaws.com"
+    Statement = [{
+      Sid    = "AllowControllerPodIdentity"
+      Effect = "Allow"
+      Action = ["sts:AssumeRole", "sts:TagSession"]
+      Principal = {
+        Service = "pods.eks.amazonaws.com"
+      }
+      Condition = {
+        StringEquals = {
+          "aws:RequestTag/eks-cluster-arn"            = aws_eks_cluster.retail_cluster.arn
+          "aws:RequestTag/kubernetes-namespace"       = local.alb_controller_namespace
+          "aws:RequestTag/kubernetes-service-account" = local.alb_controller_service_account
         }
       }
-    ]
+    }]
   })
 }
 
-resource "aws_iam_role_policy_attachment" "retail-alb-controller-policy"{
-
-  role = aws_iam_role.retail-alb-controller-role.name
+resource "aws_iam_role_policy_attachment" "retail-alb-controller-policy" {
+  role       = aws_iam_role.retail-alb-controller-role.name
   policy_arn = "arn:aws:iam::350606136784:policy/AWSLoadBalancerControllerIAMPolicy"
 }

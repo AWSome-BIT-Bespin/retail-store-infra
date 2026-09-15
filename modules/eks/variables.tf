@@ -56,6 +56,10 @@ variable "node_labels" {
   type        = map(string)
 }
 
+variable "node_labels_mgmt" {
+  type        = map(string)
+}
+
 variable "cluster_tags" {
   description = "기존 EKS 태그."
   type        = map(string)
