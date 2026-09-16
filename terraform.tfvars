@@ -1,4 +1,3 @@
-# 현재 WSL 코드의 값을 보존합니다. 비밀번호/Access Key는 이 파일에 넣지 않습니다.
 aws_region = "ap-northeast-2"
 
 vpc_cidr = "10.0.0.0/16"
@@ -30,9 +29,11 @@ eks_node_group_name = "retail-ng"
 
 eks_node_scaling = { desired_size = 2, min_size = 2, max_size = 2 }
 
-eks_node_instance_types = null
+eks_node_instance_types = ["t3.large"]
 
-eks_node_labels = { worldload = "retail" }
+eks_node_labels = { workload = "retail" }
+
+eks_node_labels_mgmt = { workload = "mgmt" }
 
 eks_cluster_tags = { Name = "retail-infra-eks", Project = "retail-infra", Environment = "prod", ManagedBy = "Terraform" }
 
@@ -46,7 +47,7 @@ rds_instance_class = "db.t4g.micro"
 
 rds_allocated_storage = 20
 
-rds_database_name = "retail"  #<-- orders로 변경할껏 !!
+rds_database_name = "orders"  #<-- orders로 변경할껏 !!
 
 rds_master_username = "dbadmin"
 
@@ -65,5 +66,5 @@ rds_client_security_group_ids = []
 rds_tags = { Name = "retail-infra-postgres", Project = "retail-infra", ManagedBy = "Terraform" }
 
 
-bastion_admin_cidr = "0.0.0.0/0" # 예시: 내 PC 공인 IP로 변경
-bastion_key_name   = "code-server"     # 기존 EC2 키 페어 이름
+bastion_admin_cidr = "0.0.0.0/0" 
+bastion_key_name   = "code-server"  

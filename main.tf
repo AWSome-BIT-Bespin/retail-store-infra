@@ -28,6 +28,7 @@ module "eks" {
   node_scaling        = var.eks_node_scaling
   node_instance_types = var.eks_node_instance_types
   node_labels         = var.eks_node_labels
+  node_labels_mgmt    = var.eks_node_labels_mgmt
   cluster_tags        = var.eks_cluster_tags
   addon_versions      = var.eks_addon_versions
   vpc_id = module.vpc.vpc_id

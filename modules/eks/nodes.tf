@@ -1,6 +1,6 @@
 resource "aws_eks_node_group" "retail_ng" {
   cluster_name    = aws_eks_cluster.retail_cluster.name
-  node_group_name = var.node_group_name
+  node_group_name = "${var.node_group_name}-app"
   node_role_arn   = aws_iam_role.retail_nodes.arn
   subnet_ids      = var.subnet_ids
 
@@ -23,15 +23,18 @@ resource "aws_eks_node_group" "retail_ng" {
     aws_eks_addon.retail_kube_proxy,
   ]
 
-  labels = var.node_labels
+  labels = var.node_labels // APP 으로 등록해야됨 
 
-  tags = { Name = var.node_group_name }
+  tags = merge(var.cluster_tags, {
+    Name     = var.node_group_name
+    Workload = "app"
+})
 }
 
 
 resource "aws_eks_node_group" "retail_mgmt_ng" {
   cluster_name    = aws_eks_cluster.retail_cluster.name
-  node_group_name = var.node_group_name
+  node_group_name = "${var.node_group_name}-mgmt"
   node_role_arn   = aws_iam_role.retail_nodes.arn
   subnet_ids      = var.subnet_ids
 
@@ -55,6 +58,16 @@ resource "aws_eks_node_group" "retail_mgmt_ng" {
   ]
 
   labels = var.node_labels_mgmt
-
-  tags = { Name = var.node_group_name }
+  taint {
+  key    = "dedicated"
+  value  = "mgmt"
+  effect = "NO_SCHEDULE"
 }
+
+
+  tags = merge(var.cluster_tags, {
+    Name     = "${var.node_group_name}-mgmt"
+    Workload = "mgmt"
+})
+}
+

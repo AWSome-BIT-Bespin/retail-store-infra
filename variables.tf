@@ -182,3 +182,12 @@ variable "rds_tags" {
   description = "RDS 태그."
   type        = map(string)
 }
+
+variable "eks_node_labels_mgmt" {
+  description = "관리용 노드 그룹의 Kubernetes 라벨"
+  type        = map(string)
+
+  default = {
+    workload = "mgmt"
+  }
+}
