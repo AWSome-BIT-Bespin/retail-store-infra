@@ -8,10 +8,8 @@ spec:
     aws:
       service: ParameterStore
       region: ap-northeast-2
-      auth:
-        jwt:
-          serviceAccountRef:
-            name: eso-secrets-reader
+      # 기존: JWT/IRSA용 별도 reader 서비스 어카운트 인증
+      # 변경: external-secrets-sa에 연결된 Pod Identity 인증
 ---
 apiVersion: external-secrets.io/v1
 kind: SecretStore
@@ -23,12 +21,10 @@ spec:
     aws:
       service: SecretsManager
       region: ap-northeast-2
-      auth:
-        jwt:
-          serviceAccountRef:
-            name: eso-secrets-reader
+      # 기존: JWT/IRSA용 별도 reader 서비스 어카운트 인증
+      # 변경: external-secrets-sa에 연결된 Pod Identity 인증
 ---
-# Prerequisites: ESO, retail-store/eso-secrets-reader, and the two SecretStores in ESO.yaml.
+# Prerequisites: ESO and the two SecretStores in this file.
 # AWS region: ap-northeast-2. Create the AWS source values before applying this file.
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret

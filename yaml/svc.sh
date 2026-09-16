@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Run this script after create-cluster.sh has created the EKS cluster.
-# The retail application itself remains managed by GitOps with:
-#   values.yaml + values-dev-rds.yaml
+# Run this script after Terraform has created the EKS cluster
+# and configured workload IAM / EKS Pod Identity.
+#
+# This script bootstraps platform components inside the cluster.
+# The retail application itself remains managed by GitOps.
 
 CLUSTER_NAME="${CLUSTER_NAME:-retail-eks-cluster}"
 AWS_REGION="${AWS_REGION:-ap-northeast-2}"
 KUBE_NAMESPACE="${KUBE_NAMESPACE:-kube-system}"
 APP_NAMESPACE="${APP_NAMESPACE:-retail-store}"
 ESO_NAMESPACE="${ESO_NAMESPACE:-external-secrets}"
-CART_SERVICE_ACCOUNT="${CART_SERVICE_ACCOUNT:-carts-dynamo}"
 CART_TABLE_NAME="${CART_TABLE_NAME:-retail-store-cart}"
 
 HELM_VERSION="${HELM_VERSION:-v3.21.4}"
@@ -22,6 +23,10 @@ AWS_LBC_CHART_VERSION="${AWS_LBC_CHART_VERSION:-3.5.0}"
 CLUSTER_AUTOSCALER_VERSION="${CLUSTER_AUTOSCALER_VERSION:-v1.36.0}"
 CLUSTER_AUTOSCALER_CHART_VERSION="${CLUSTER_AUTOSCALER_CHART_VERSION:-9.59.0}"
 
+ESO_CHART_VERSION="${ESO_CHART_VERSION:-2.10.0}"
+ESO_POLICY_NAME="${ESO_POLICY_NAME:-RetailStoreESOReadPolicy-${CLUSTER_NAME}-v1}"
+CART_POLICY_NAME="${CART_POLICY_NAME:-RetailStoreCartDynamoDBPolicy-${CLUSTER_NAME}-v1}"
+
 AWS_LBC_POLICY_VERSION="${AWS_LBC_VERSION#v}"
 AWS_LBC_POLICY_VERSION="${AWS_LBC_POLICY_VERSION//./-}"
 CLUSTER_AUTOSCALER_POLICY_VERSION="${CLUSTER_AUTOSCALER_VERSION#v}"
@@ -29,10 +34,6 @@ CLUSTER_AUTOSCALER_POLICY_VERSION="${CLUSTER_AUTOSCALER_POLICY_VERSION//./-}"
 
 AWS_LBC_POLICY_NAME="${AWS_LBC_POLICY_NAME:-AWSLoadBalancerControllerIAMPolicy-${AWS_LBC_POLICY_VERSION}}"
 CLUSTER_AUTOSCALER_POLICY_NAME="${CLUSTER_AUTOSCALER_POLICY_NAME:-ClusterAutoscalerPolicy-${CLUSTER_NAME}-${CLUSTER_AUTOSCALER_POLICY_VERSION}}"
-
-ESO_CHART_VERSION="${ESO_CHART_VERSION:-2.10.0}"
-ESO_POLICY_NAME="${ESO_POLICY_NAME:-RetailStoreESOReadPolicy-${CLUSTER_NAME}-v1}"
-CART_POLICY_NAME="${CART_POLICY_NAME:-RetailStoreCartDynamoDBPolicy-${CLUSTER_NAME}-v1}"
 
 WORK_DIR=""
 
@@ -100,22 +101,6 @@ ensure_iam_policy() {
   printf '%s\n' "${policy_arn}"
 }
 
-ensure_irsa_service_account() {
-  local service_account_name="$1"
-  local policy_arn="$2"
-  local service_account_namespace="${3:-${KUBE_NAMESPACE}}"
-
-  log "IRSA ServiceAccount 구성: ${service_account_namespace}/${service_account_name}"
-  eksctl create iamserviceaccount \
-    --cluster "${CLUSTER_NAME}" \
-    --region "${AWS_REGION}" \
-    --namespace "${service_account_namespace}" \
-    --name "${service_account_name}" \
-    --attach-policy-arn "${policy_arn}" \
-    --override-existing-serviceaccounts \
-    --approve
-}
-
 tag_managed_nodegroups_for_autodiscovery() {
   local nodegroups
   local nodegroup
@@ -150,13 +135,13 @@ tag_managed_nodegroups_for_autodiscovery() {
   done
 }
 
-for command_name in aws kubectl eksctl curl; do
+for command_name in aws kubectl curl; do
   require_command "${command_name}"
 done
 
 WORK_DIR="$(mktemp -d)"
 
-log "AWS 로그인 및 EKS 클러스터 확인"
+log "AWS 자격 증명 및 EKS 클러스터 확인"
 AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 [[ "${AWS_ACCOUNT_ID}" =~ ^[0-9]{12}$ ]] || die "AWS 계정 ID를 확인하지 못했습니다."
 
@@ -193,12 +178,7 @@ kubectl cluster-info >/dev/null
 
 install_helm_if_missing
 
-log "클러스터 IAM OIDC Provider 확인"
-eksctl utils associate-iam-oidc-provider \
-  --cluster "${CLUSTER_NAME}" \
-  --region "${AWS_REGION}" \
-  --approve
-
+# 기존 IAM Policy 생성 로직은 유지합니다. ServiceAccount 생성 방식만 Helm으로 전환합니다.
 AWS_LBC_POLICY_FILE="${WORK_DIR}/aws-load-balancer-controller-policy.json"
 CLUSTER_AUTOSCALER_POLICY_FILE="${WORK_DIR}/cluster-autoscaler-policy.json"
 ESO_POLICY_FILE="${WORK_DIR}/external-secrets-policy.json"
@@ -308,25 +288,8 @@ CART_POLICY_ARN="$(ensure_iam_policy \
   "${CART_POLICY_NAME}" \
   "${CART_POLICY_FILE}")"
 
-ensure_irsa_service_account \
-  "aws-load-balancer-controller" \
-  "${AWS_LBC_POLICY_ARN}"
-ensure_irsa_service_account \
-  "cluster-autoscaler" \
-  "${CLUSTER_AUTOSCALER_POLICY_ARN}"
-
 log "애플리케이션 네임스페이스 준비: ${APP_NAMESPACE}"
 kubectl create namespace "${APP_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
-
-ensure_irsa_service_account \
-  "eso-secrets-reader" \
-  "${ESO_POLICY_ARN}" \
-  "${APP_NAMESPACE}"
-
-ensure_irsa_service_account \
-  "${CART_SERVICE_ACCOUNT}" \
-  "${CART_POLICY_ARN}" \
-  "${APP_NAMESPACE}"
 
 tag_managed_nodegroups_for_autodiscovery
 
@@ -341,6 +304,8 @@ helm show crds eks/aws-load-balancer-controller \
   --version "${AWS_LBC_CHART_VERSION}" | kubectl apply -f -
 
 log "AWS Load Balancer Controller 설치 또는 업그레이드"
+# 기존: aws-load-balancer-controller 서비스 어카운트를 사전 생성하고 create=false
+# 변경: Helm이 aws-load-balancer-controller-sa를 생성
 helm upgrade --install aws-load-balancer-controller \
   eks/aws-load-balancer-controller \
   --namespace "${KUBE_NAMESPACE}" \
@@ -348,13 +313,15 @@ helm upgrade --install aws-load-balancer-controller \
   --set "clusterName=${CLUSTER_NAME}" \
   --set "region=${AWS_REGION}" \
   --set "vpcId=${VPC_ID}" \
-  --set serviceAccount.create=false \
-  --set serviceAccount.name=aws-load-balancer-controller \
+  --set serviceAccount.create=true \
+  --set serviceAccount.name=aws-load-balancer-controller-sa \
   --set-string 'ingressClassParams.spec.subnets.tags.Tier[0]=public' \
   --wait \
   --timeout 10m
 
 log "Cluster Autoscaler 설치 또는 업그레이드"
+# 기존: cluster-autoscaler 서비스 어카운트를 사전 생성하고 create=false
+# 변경: Helm이 cluster-autoscaler-sa를 생성
 helm upgrade --install cluster-autoscaler \
   autoscaler/cluster-autoscaler \
   --namespace "${KUBE_NAMESPACE}" \
@@ -363,14 +330,16 @@ helm upgrade --install cluster-autoscaler \
   --set "awsRegion=${AWS_REGION}" \
   --set "autoDiscovery.clusterName=${CLUSTER_NAME}" \
   --set "image.tag=${CLUSTER_AUTOSCALER_VERSION}" \
-  --set rbac.serviceAccount.create=false \
-  --set rbac.serviceAccount.name=cluster-autoscaler \
+  --set rbac.serviceAccount.create=true \
+  --set rbac.serviceAccount.name=cluster-autoscaler-sa \
   --set extraArgs.balance-similar-node-groups=true \
   --set extraArgs.expander=least-waste \
   --wait \
   --timeout 10m
 
 log "External Secrets Operator 설치 또는 업그레이드"
+# 기존: Helm 기본 서비스 어카운트 이름 external-secrets 사용
+# 변경: Helm이 external-secrets-sa를 생성
 helm upgrade --install external-secrets \
   external-secrets/external-secrets \
   --namespace "${ESO_NAMESPACE}" \
@@ -378,7 +347,7 @@ helm upgrade --install external-secrets \
   --version "${ESO_CHART_VERSION}" \
   --set installCRDs=true \
   --set serviceAccount.create=true \
-  --set serviceAccount.name=external-secrets \
+  --set serviceAccount.name=external-secrets-sa \
   --wait \
   --timeout 10m
 
@@ -410,8 +379,15 @@ kubectl get deployment \
   --namespace "${ESO_NAMESPACE}" \
   --selector=app.kubernetes.io/instance=external-secrets
 
+# 기존: 스크립트가 별도 애플리케이션 서비스 어카운트를 확인
+# 변경: Helm이 생성한 플랫폼 서비스 어카운트를 확인
 kubectl get serviceaccount \
-  "eso-secrets-reader" "${CART_SERVICE_ACCOUNT}" \
-  --namespace "${APP_NAMESPACE}"
+  aws-load-balancer-controller-sa \
+  cluster-autoscaler-sa \
+  --namespace "${KUBE_NAMESPACE}"
+
+kubectl get serviceaccount \
+  external-secrets-sa \
+  --namespace "${ESO_NAMESPACE}"
 
 log "설치가 완료되었습니다. 다음으로 ESO.yaml과 ExternalSecret을 적용하세요."
