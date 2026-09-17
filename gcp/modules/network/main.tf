@@ -1,7 +1,7 @@
 resource "google_compute_network" "this" {
   project                 = var.project_id
   name                    = "${var.name}-vpc"
-  auto_create_subnetworks  = false
+  auto_create_subnetworks = false
   routing_mode            = "REGIONAL"
 }
 

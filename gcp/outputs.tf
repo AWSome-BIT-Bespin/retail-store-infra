@@ -27,11 +27,11 @@ output "ingress_ip" {
 }
 
 output "get_credentials_command" {
-  value = "gcloud container clusters get-credentials ${module.gke.cluster_name} --region ${var.region} --project ${var.project_id}${var.private_endpoint_only ? " --internal-ip" : ""}"
+  value = "gcloud container clusters get-credentials ${module.gke.cluster_name} --zone ${var.node_zones[0]} --project ${var.project_id}${var.private_endpoint_only ? " --internal-ip" : ""}"
 }
 
 output "get_credentials_private_command" {
-  value = "gcloud container clusters get-credentials ${module.gke.cluster_name} --region ${var.region} --project ${var.project_id} --internal-ip"
+  value = "gcloud container clusters get-credentials ${module.gke.cluster_name} --zone ${var.node_zones[0]} --project ${var.project_id} --internal-ip"
 }
 
 output "bastion_ssh_command" {
