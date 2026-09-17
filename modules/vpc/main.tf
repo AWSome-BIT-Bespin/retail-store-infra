@@ -7,7 +7,7 @@ locals {
   azs = length(var.availability_zones) == 0 ? slice(data.aws_availability_zones.available.names, 0, 2) : var.availability_zones
 }
 
-resource "aws_vpc" "retail-infra-vpc" {
+resource "aws_vpc" "retail_infra_vpc" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
   enable_dns_hostnames = true
