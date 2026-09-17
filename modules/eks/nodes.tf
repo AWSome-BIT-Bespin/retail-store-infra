@@ -23,10 +23,12 @@ resource "aws_eks_node_group" "retail_ng" {
     aws_eks_addon.retail_kube_proxy,
   ]
 
-  labels = var.node_labels // APP 으로 등록해야됨 
+  labels = {
+    workload = "app"
+  } 
 
   tags = merge(var.cluster_tags, {
-    Name     = var.node_group_name
+    Name     = "${var.node_group_name}-app"
     Workload = "app"
 })
 }
@@ -63,7 +65,6 @@ resource "aws_eks_node_group" "retail_mgmt_ng" {
   value  = "mgmt"
   effect = "NO_SCHEDULE"
 }
-
 
   tags = merge(var.cluster_tags, {
     Name     = "${var.node_group_name}-mgmt"

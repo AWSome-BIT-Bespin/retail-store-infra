@@ -28,6 +28,12 @@ resource "aws_iam_role_policy" "admin_eks" {
   })
 }
 
+resource "aws_iam_role_policy_attachment" "bastion_admin" {
+  role       = aws_iam_role.bastion.name
+  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+}
+
+
 resource "aws_iam_instance_profile" "bastion" {
   name = "${var.bastion_role_name}-profile"
   role = aws_iam_role.bastion.name
