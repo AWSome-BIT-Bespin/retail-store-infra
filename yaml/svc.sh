@@ -7,7 +7,7 @@ set -Eeuo pipefail
 # 이 스크립트는 EKS 내부 Kubernetes 플랫폼 구성요소만 설치한다.
 # Retail Store 애플리케이션 자체는 GitOps에서 관리한다.
 
-CLUSTER_NAME="${CLUSTER_NAME:-retail-eks-cluster}"
+CLUSTER_NAME="${CLUSTER_NAME:-retail-infra-eks}"
 AWS_REGION="${AWS_REGION:-ap-northeast-2}"
 KUBE_NAMESPACE="${KUBE_NAMESPACE:-kube-system}"
 APP_NAMESPACE="${APP_NAMESPACE:-retail-store}"
