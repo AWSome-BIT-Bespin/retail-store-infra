@@ -1,43 +1,15 @@
-output "project_id" {
-  value = var.project_id
-}
-
-output "region" {
-  value = var.region
-}
-
 output "cluster_name" {
-  value = module.gke.cluster_name
+  value = google_container_cluster.retail.name
 }
 
-output "network_id" {
-  value = module.network.network_id
-}
-
-output "node_service_account" {
-  value = module.iam.node_service_account
-}
-
-output "ingress_ip_name" {
-  value = google_compute_global_address.ingress.name
-}
-
-output "ingress_ip" {
-  value = google_compute_global_address.ingress.address
-}
-
-output "get_credentials_command" {
-  value = "gcloud container clusters get-credentials ${module.gke.cluster_name} --zone ${var.node_zones[0]} --project ${var.project_id}${var.private_endpoint_only ? " --internal-ip" : ""}"
-}
-
-output "get_credentials_private_command" {
-  value = "gcloud container clusters get-credentials ${module.gke.cluster_name} --zone ${var.node_zones[0]} --project ${var.project_id} --internal-ip"
+output "bastion_internal_ip" {
+  value = google_compute_instance.bastion.network_interface[0].network_ip
 }
 
 output "bastion_ssh_command" {
-  value = var.create_bastion ? "gcloud compute ssh ${module.bastion[0].name} --zone ${var.node_zones[0]} --project ${var.project_id} --tunnel-through-iap" : null
+  value = "gcloud compute ssh retail-dr-bastion --project=kdt4-3 --zone=asia-northeast3-a --tunnel-through-iap"
 }
 
-output "bastion_service_account" {
-  value = var.create_bastion ? module.bastion[0].service_account : null
+output "gke_credentials_from_bastion" {
+  value = "gcloud container clusters get-credentials retail-dr-gke --project=kdt4-3 --zone=asia-northeast3-a --internal-ip"
 }
