@@ -125,27 +125,6 @@ resource "aws_instance" "bastion" {
   key_name                    = var.bastion_key_name
   iam_instance_profile = module.bastion.instance_profile_name
 
-    user_data = <<-EOF
-    #!/bin/bash
-    set -euo pipefail
-
-    mkdir -p /var/tmp/retail-kubectl
-    cd /var/tmp/retail-kubectl
-
-    KUBECTL_URL="https://s3.us-west-2.amazonaws.com/amazon-eks/1.36.2/2026-07-05/bin/linux/amd64/kubectl"
-
-    # 실행 파일과 체크섬 다운로드
-    curl -fsSL --retry 5 -o kubectl "$KUBECTL_URL"
-    curl -fsSL --retry 5 -o kubectl.sha256 "$KUBECTL_URL.sha256"
-
-    # 다운로드 파일 검증
-    sha256sum -c kubectl.sha256
-
-    # 실행 권한을 지정하면서 시스템 경로에 설치
-    install -m 0755 kubectl /usr/local/bin/kubectl
-
-    /usr/local/bin/kubectl version --client
-  EOF
   root_block_device {
     volume_size = 20
     volume_type = "gp3"
@@ -161,7 +140,13 @@ resource "aws_instance" "bastion" {
     Name      = "retail-bastion"
     ManagedBy = "Terraform"
   }
+  lifecycle{
+  ignore_changes = [ami]
+  prevent_destroy = true
 }
+}
+
+
 
 output "bastion_public_ip" {
   value = aws_instance.bastion.public_ip

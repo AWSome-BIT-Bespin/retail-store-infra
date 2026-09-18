@@ -28,7 +28,7 @@ eks_public_access_cidrs = ["0.0.0.0/0"]
 
 eks_node_group_name = "retail-ng"
 
-eks_node_scaling = { desired_size = 2, min_size = 2, max_size = 2 }
+eks_node_scaling = { desired_size = 2, min_size = 2, max_size = 4 }
 
 eks_node_instance_types = null
 
@@ -42,13 +42,13 @@ eks_addon_versions = {}
 
 rds_identifier = "retail-infra-postgres"
 
-rds_engine_version = "17.11"
+rds_engine_version = "16"
 
 rds_instance_class = "db.t4g.micro"
 
 rds_allocated_storage = 20
 
-rds_database_name = "retail"  #<-- orders로 변경할껏 !!
+rds_database_name = "orders"  #<-- orders로 변경할껏 !!
 
 rds_master_username = "dbadmin"
 
