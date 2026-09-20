@@ -1,38 +1,36 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Run this script after create-cluster.sh has created the EKS cluster.
-# The retail application itself remains managed by GitOps with:
-#   values.yaml + values-dev-rds.yaml
+# Terraform으로 EKS 클러스터, Node Group, IAM Role,
+# Pod Identity Association이 생성된 이후 실행한다.
+#
+# 이 스크립트는 EKS 내부 Kubernetes 플랫폼 구성요소만 설치한다.
+# Retail Store 애플리케이션 자체는 GitOps에서 관리한다.
 
 CLUSTER_NAME="${CLUSTER_NAME:-retail-eks-cluster}"
 AWS_REGION="${AWS_REGION:-ap-northeast-2}"
 KUBE_NAMESPACE="${KUBE_NAMESPACE:-kube-system}"
 APP_NAMESPACE="${APP_NAMESPACE:-retail-store}"
 ESO_NAMESPACE="${ESO_NAMESPACE:-external-secrets}"
-CART_SERVICE_ACCOUNT="${CART_SERVICE_ACCOUNT:-carts-dynamo}"
-CART_TABLE_NAME="${CART_TABLE_NAME:-retail-store-cart}"
+
+# 플랫폼 Pod를 Management Node Group에 고정하기 위한 공통 label/taint 기준이다.
+# workload=mgmt 라벨로 관리용 Node를 선택하고, dedicated=mgmt:NoSchedule taint로 일반 Pod의 진입을 차단한다.
+# Terraform 설정과 반드시 동일해야 한다.
+MGMT_NODE_LABEL_KEY="${MGMT_NODE_LABEL_KEY:-workload}"
+MGMT_NODE_LABEL_VALUE="${MGMT_NODE_LABEL_VALUE:-mgmt}"
+MGMT_TAINT_KEY="${MGMT_TAINT_KEY:-dedicated}"
+MGMT_TAINT_VALUE="${MGMT_TAINT_VALUE:-mgmt}"
+MGMT_TAINT_EFFECT="${MGMT_TAINT_EFFECT:-NoSchedule}"
 
 HELM_VERSION="${HELM_VERSION:-v3.21.4}"
 HELM_INSTALL_DIR="${HELM_INSTALL_DIR:-/usr/local/bin}"
 
-AWS_LBC_VERSION="${AWS_LBC_VERSION:-v3.5.0}"
 AWS_LBC_CHART_VERSION="${AWS_LBC_CHART_VERSION:-3.5.0}"
 
 CLUSTER_AUTOSCALER_VERSION="${CLUSTER_AUTOSCALER_VERSION:-v1.36.0}"
 CLUSTER_AUTOSCALER_CHART_VERSION="${CLUSTER_AUTOSCALER_CHART_VERSION:-9.59.0}"
 
-AWS_LBC_POLICY_VERSION="${AWS_LBC_VERSION#v}"
-AWS_LBC_POLICY_VERSION="${AWS_LBC_POLICY_VERSION//./-}"
-CLUSTER_AUTOSCALER_POLICY_VERSION="${CLUSTER_AUTOSCALER_VERSION#v}"
-CLUSTER_AUTOSCALER_POLICY_VERSION="${CLUSTER_AUTOSCALER_POLICY_VERSION//./-}"
-
-AWS_LBC_POLICY_NAME="${AWS_LBC_POLICY_NAME:-AWSLoadBalancerControllerIAMPolicy-${AWS_LBC_POLICY_VERSION}}"
-CLUSTER_AUTOSCALER_POLICY_NAME="${CLUSTER_AUTOSCALER_POLICY_NAME:-ClusterAutoscalerPolicy-${CLUSTER_NAME}-${CLUSTER_AUTOSCALER_POLICY_VERSION}}"
-
 ESO_CHART_VERSION="${ESO_CHART_VERSION:-2.10.0}"
-ESO_POLICY_NAME="${ESO_POLICY_NAME:-RetailStoreESOReadPolicy-${CLUSTER_NAME}-v1}"
-CART_POLICY_NAME="${CART_POLICY_NAME:-RetailStoreCartDynamoDBPolicy-${CLUSTER_NAME}-v1}"
 
 WORK_DIR=""
 
@@ -82,40 +80,68 @@ install_helm_if_missing() {
   helm version --short
 }
 
-ensure_iam_policy() {
-  local policy_name="$1"
-  local policy_file="$2"
-  local policy_arn="arn:aws:iam::${AWS_ACCOUNT_ID}:policy/${policy_name}"
+validate_management_nodes() {
+  local node_rows
+  local node_name
+  local taints
+  local expected_taint="${MGMT_TAINT_KEY}=${MGMT_TAINT_VALUE}=${MGMT_TAINT_EFFECT}"
 
-  if aws iam get-policy --policy-arn "${policy_arn}" >/dev/null 2>&1; then
-    log "기존 IAM 정책 사용: ${policy_arn}" >&2
-  else
-    log "IAM 정책 생성: ${policy_name}" >&2
-    aws iam create-policy \
-      --policy-name "${policy_name}" \
-      --policy-document "file://${policy_file}" \
-      --no-cli-pager >/dev/null
-  fi
+  # MGMT Node가 없는 상태에서 nodeSelector를 적용하면
+  # 플랫폼 Pod가 스케줄되지 못하고 Pending 상태가 될 수 있으므로 선행 검증한다.
+  node_rows="$(kubectl get nodes \
+    --selector "${MGMT_NODE_LABEL_KEY}=${MGMT_NODE_LABEL_VALUE}" \
+    --output 'jsonpath={range .items[*]}{.metadata.name}{"\t"}{range .spec.taints[*]}{.key}={.value}={.effect}{" "}{end}{"\n"}{end}')"
 
-  printf '%s\n' "${policy_arn}"
+  [[ -n "${node_rows}" ]] ||
+    die "MGMT Node를 찾지 못했습니다: ${MGMT_NODE_LABEL_KEY}=${MGMT_NODE_LABEL_VALUE}"
+
+  while IFS=$'\t' read -r node_name taints; do
+    [[ -n "${node_name}" ]] || continue
+    case " ${taints} " in
+      *" ${expected_taint} "*)
+        ;;
+      *)
+        die "Node ${node_name}에 필요한 taint가 없습니다: ${MGMT_TAINT_KEY}=${MGMT_TAINT_VALUE}:${MGMT_TAINT_EFFECT}"
+        ;;
+    esac
+  done <<< "${node_rows}"
+
+  log "Management Node 확인 완료"
+  log "label: ${MGMT_NODE_LABEL_KEY}=${MGMT_NODE_LABEL_VALUE}"
+  log "taint: ${MGMT_TAINT_KEY}=${MGMT_TAINT_VALUE}:${MGMT_TAINT_EFFECT}"
 }
 
-ensure_irsa_service_account() {
-  local service_account_name="$1"
-  local policy_arn="$2"
-  local service_account_namespace="${3:-${KUBE_NAMESPACE}}"
+verify_platform_pod_nodes() {
+  local namespace="$1"
+  local selector="$2"
+  local component="$3"
+  local pod_rows
+  local pod_name
+  local node_name
+  local node_label
 
-  log "IRSA ServiceAccount 구성: ${service_account_namespace}/${service_account_name}"
-  eksctl create iamserviceaccount \
-    --cluster "${CLUSTER_NAME}" \
-    --region "${AWS_REGION}" \
-    --namespace "${service_account_namespace}" \
-    --name "${service_account_name}" \
-    --attach-policy-arn "${policy_arn}" \
-    --override-existing-serviceaccounts \
-    --approve
+  # nodeSelector/toleration 설정이 실제 스케줄링 결과까지 반영되었는지 확인한다.
+  pod_rows="$(kubectl get pods \
+    --namespace "${namespace}" \
+    --selector "${selector}" \
+    --field-selector status.phase=Running \
+    --output 'jsonpath={range .items[*]}{.metadata.name}{"\t"}{.spec.nodeName}{"\n"}{end}')"
+
+  [[ -n "${pod_rows}" ]] ||
+    die "${component} 실행 Pod를 찾지 못했습니다."
+
+  while IFS=$'\t' read -r pod_name node_name; do
+    [[ -n "${pod_name}" ]] || continue
+    node_label="$(kubectl get node "${node_name}" \
+      --output "jsonpath={.metadata.labels['${MGMT_NODE_LABEL_KEY}']}")"
+    [[ "${node_label}" == "${MGMT_NODE_LABEL_VALUE}" ]] ||
+      die "${component} Pod ${pod_name}가 MGMT Node가 아닌 ${node_name}에 배치되었습니다."
+    log "${component} Pod 배치 확인: ${pod_name} -> ${node_name}"
+  done <<< "${pod_rows}"
 }
 
+# APP/MGMT 두 Managed Node Group 모두 Cluster Autoscaler의
+# 자동 탐색 대상이어야 하므로 전체 Node Group의 ASG에 태그를 설정한다.
 tag_managed_nodegroups_for_autodiscovery() {
   local nodegroups
   local nodegroup
@@ -150,16 +176,13 @@ tag_managed_nodegroups_for_autodiscovery() {
   done
 }
 
-for command_name in aws kubectl eksctl curl; do
+for command_name in aws kubectl; do
   require_command "${command_name}"
 done
 
 WORK_DIR="$(mktemp -d)"
 
-log "AWS 로그인 및 EKS 클러스터 확인"
-AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-[[ "${AWS_ACCOUNT_ID}" =~ ^[0-9]{12}$ ]] || die "AWS 계정 ID를 확인하지 못했습니다."
-
+log "EKS 클러스터 상태 확인"
 CLUSTER_STATUS="$(aws eks describe-cluster \
   --name "${CLUSTER_NAME}" \
   --region "${AWS_REGION}" \
@@ -191,142 +214,14 @@ aws eks update-kubeconfig \
   --region "${AWS_REGION}" >/dev/null
 kubectl cluster-info >/dev/null
 
+validate_management_nodes
+
+# IAM Role과 Pod Identity Association은 Terraform에서 관리하고,
+# svc.sh는 Kubernetes 플랫폼 구성만 담당한다.
 install_helm_if_missing
-
-log "클러스터 IAM OIDC Provider 확인"
-eksctl utils associate-iam-oidc-provider \
-  --cluster "${CLUSTER_NAME}" \
-  --region "${AWS_REGION}" \
-  --approve
-
-AWS_LBC_POLICY_FILE="${WORK_DIR}/aws-load-balancer-controller-policy.json"
-CLUSTER_AUTOSCALER_POLICY_FILE="${WORK_DIR}/cluster-autoscaler-policy.json"
-ESO_POLICY_FILE="${WORK_DIR}/external-secrets-policy.json"
-CART_POLICY_FILE="${WORK_DIR}/cart-dynamodb-policy.json"
-
-cat >"${ESO_POLICY_FILE}" <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "ReadRetailParameters",
-      "Effect": "Allow",
-      "Action": ["ssm:GetParameter"],
-      "Resource": "arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/retail-store/*"
-    },
-    {
-      "Sid": "ReadRetailSecrets",
-      "Effect": "Allow",
-      "Action": [
-        "secretsmanager:GetSecretValue",
-        "secretsmanager:DescribeSecret"
-      ],
-      "Resource": "arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:retail-store/*"
-    }
-  ]
-}
-EOF
-
-cat >"${CART_POLICY_FILE}" <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "ReadWriteCartItems",
-      "Effect": "Allow",
-      "Action": [
-        "dynamodb:GetItem",
-        "dynamodb:PutItem",
-        "dynamodb:UpdateItem",
-        "dynamodb:DeleteItem",
-        "dynamodb:Query"
-      ],
-      "Resource": "arn:aws:dynamodb:${AWS_REGION}:${AWS_ACCOUNT_ID}:table/${CART_TABLE_NAME}"
-    },
-    {
-      "Sid": "QueryCartIndexes",
-      "Effect": "Allow",
-      "Action": ["dynamodb:Query"],
-      "Resource": "arn:aws:dynamodb:${AWS_REGION}:${AWS_ACCOUNT_ID}:table/${CART_TABLE_NAME}/index/*"
-    }
-  ]
-}
-EOF
-
-log "AWS Load Balancer Controller ${AWS_LBC_VERSION} IAM 정책 다운로드"
-curl -fsSL -o "${AWS_LBC_POLICY_FILE}" \
-  "https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/${AWS_LBC_VERSION}/docs/install/iam_policy.json"
-
-cat >"${CLUSTER_AUTOSCALER_POLICY_FILE}" <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "autoscaling:SetDesiredCapacity",
-        "autoscaling:TerminateInstanceInAutoScalingGroup"
-      ],
-      "Resource": "*",
-      "Condition": {
-        "StringEquals": {
-          "aws:ResourceTag/k8s.io/cluster-autoscaler/enabled": "true",
-          "aws:ResourceTag/k8s.io/cluster-autoscaler/${CLUSTER_NAME}": "owned"
-        }
-      }
-    },
-    {
-      "Effect": "Allow",
-      "Action": [
-        "autoscaling:DescribeAutoScalingGroups",
-        "autoscaling:DescribeAutoScalingInstances",
-        "autoscaling:DescribeLaunchConfigurations",
-        "autoscaling:DescribeScalingActivities",
-        "autoscaling:DescribeTags",
-        "ec2:DescribeImages",
-        "ec2:DescribeInstanceTypes",
-        "ec2:DescribeLaunchTemplateVersions",
-        "ec2:GetInstanceTypesFromInstanceRequirements",
-        "eks:DescribeNodegroup"
-      ],
-      "Resource": "*"
-    }
-  ]
-}
-EOF
-
-AWS_LBC_POLICY_ARN="$(ensure_iam_policy \
-  "${AWS_LBC_POLICY_NAME}" \
-  "${AWS_LBC_POLICY_FILE}")"
-CLUSTER_AUTOSCALER_POLICY_ARN="$(ensure_iam_policy \
-  "${CLUSTER_AUTOSCALER_POLICY_NAME}" \
-  "${CLUSTER_AUTOSCALER_POLICY_FILE}")"
-ESO_POLICY_ARN="$(ensure_iam_policy \
-  "${ESO_POLICY_NAME}" \
-  "${ESO_POLICY_FILE}")"
-CART_POLICY_ARN="$(ensure_iam_policy \
-  "${CART_POLICY_NAME}" \
-  "${CART_POLICY_FILE}")"
-
-ensure_irsa_service_account \
-  "aws-load-balancer-controller" \
-  "${AWS_LBC_POLICY_ARN}"
-ensure_irsa_service_account \
-  "cluster-autoscaler" \
-  "${CLUSTER_AUTOSCALER_POLICY_ARN}"
 
 log "애플리케이션 네임스페이스 준비: ${APP_NAMESPACE}"
 kubectl create namespace "${APP_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
-
-ensure_irsa_service_account \
-  "eso-secrets-reader" \
-  "${ESO_POLICY_ARN}" \
-  "${APP_NAMESPACE}"
-
-ensure_irsa_service_account \
-  "${CART_SERVICE_ACCOUNT}" \
-  "${CART_POLICY_ARN}" \
-  "${APP_NAMESPACE}"
 
 tag_managed_nodegroups_for_autodiscovery
 
@@ -341,6 +236,9 @@ helm show crds eks/aws-load-balancer-controller \
   --version "${AWS_LBC_CHART_VERSION}" | kubectl apply -f -
 
 log "AWS Load Balancer Controller 설치 또는 업그레이드"
+# LBC용 IAM 권한은 Terraform의 Pod Identity Association으로 연결되므로
+# Helm은 Terraform이 참조할 이름의 Kubernetes ServiceAccount만 생성한다.
+# MGMT Node의 taint를 허용하고 label을 선택해 LBC를 플랫폼 노드에 배치한다.
 helm upgrade --install aws-load-balancer-controller \
   eks/aws-load-balancer-controller \
   --namespace "${KUBE_NAMESPACE}" \
@@ -348,13 +246,21 @@ helm upgrade --install aws-load-balancer-controller \
   --set "clusterName=${CLUSTER_NAME}" \
   --set "region=${AWS_REGION}" \
   --set "vpcId=${VPC_ID}" \
-  --set serviceAccount.create=false \
-  --set serviceAccount.name=aws-load-balancer-controller \
+  --set serviceAccount.create=true \
+  --set serviceAccount.name=aws-load-balancer-controller-sa \
+  --set-string "nodeSelector.${MGMT_NODE_LABEL_KEY}=${MGMT_NODE_LABEL_VALUE}" \
+  --set-string "tolerations[0].key=${MGMT_TAINT_KEY}" \
+  --set-string "tolerations[0].operator=Equal" \
+  --set-string "tolerations[0].value=${MGMT_TAINT_VALUE}" \
+  --set-string "tolerations[0].effect=${MGMT_TAINT_EFFECT}" \
   --set-string 'ingressClassParams.spec.subnets.tags.Tier[0]=public' \
   --wait \
   --timeout 10m
 
 log "Cluster Autoscaler 설치 또는 업그레이드"
+# Cluster Autoscaler용 IAM 권한은 Terraform의 Pod Identity Association으로 연결하고
+# 기존 APP/MGMT 전체 Managed Node Group 자동 탐색 로직은 유지한다.
+# MGMT Node의 taint를 허용하고 label을 선택해 Autoscaler Pod를 플랫폼 노드에 배치한다.
 helm upgrade --install cluster-autoscaler \
   autoscaler/cluster-autoscaler \
   --namespace "${KUBE_NAMESPACE}" \
@@ -363,14 +269,22 @@ helm upgrade --install cluster-autoscaler \
   --set "awsRegion=${AWS_REGION}" \
   --set "autoDiscovery.clusterName=${CLUSTER_NAME}" \
   --set "image.tag=${CLUSTER_AUTOSCALER_VERSION}" \
-  --set rbac.serviceAccount.create=false \
-  --set rbac.serviceAccount.name=cluster-autoscaler \
+  --set rbac.serviceAccount.create=true \
+  --set rbac.serviceAccount.name=cluster-autoscaler-sa \
+  --set-string "nodeSelector.${MGMT_NODE_LABEL_KEY}=${MGMT_NODE_LABEL_VALUE}" \
+  --set-string "tolerations[0].key=${MGMT_TAINT_KEY}" \
+  --set-string "tolerations[0].operator=Equal" \
+  --set-string "tolerations[0].value=${MGMT_TAINT_VALUE}" \
+  --set-string "tolerations[0].effect=${MGMT_TAINT_EFFECT}" \
   --set extraArgs.balance-similar-node-groups=true \
   --set extraArgs.expander=least-waste \
   --wait \
   --timeout 10m
 
 log "External Secrets Operator 설치 또는 업그레이드"
+# ESO Controller가 AWS Secrets Manager와 Parameter Store에 접근할 권한은
+# Terraform에서 external-secrets-sa와 Pod Identity Association으로 연결한다.
+# global 스케줄링 값이 controller/webhook/cert-controller 모두에 적용되도록 설정한다.
 helm upgrade --install external-secrets \
   external-secrets/external-secrets \
   --namespace "${ESO_NAMESPACE}" \
@@ -378,7 +292,12 @@ helm upgrade --install external-secrets \
   --version "${ESO_CHART_VERSION}" \
   --set installCRDs=true \
   --set serviceAccount.create=true \
-  --set serviceAccount.name=external-secrets \
+  --set serviceAccount.name=external-secrets-sa \
+  --set-string "global.nodeSelector.${MGMT_NODE_LABEL_KEY}=${MGMT_NODE_LABEL_VALUE}" \
+  --set-string "global.tolerations[0].key=${MGMT_TAINT_KEY}" \
+  --set-string "global.tolerations[0].operator=Equal" \
+  --set-string "global.tolerations[0].value=${MGMT_TAINT_VALUE}" \
+  --set-string "global.tolerations[0].effect=${MGMT_TAINT_EFFECT}" \
   --wait \
   --timeout 10m
 
@@ -392,15 +311,17 @@ kubectl rollout status deployment/aws-load-balancer-controller \
   --namespace "${KUBE_NAMESPACE}" \
   --timeout=5m
 
-kubectl rollout status deployment \
+# 고정된 Cluster Autoscaler 9.59.0 Chart가 생성하는 실제 Deployment 이름을 사용한다.
+kubectl rollout status deployment/cluster-autoscaler-aws-cluster-autoscaler \
   --namespace "${KUBE_NAMESPACE}" \
-  --selector=app.kubernetes.io/instance=cluster-autoscaler \
   --timeout=5m
 
-kubectl rollout status deployment \
+# 고정된 ESO 2.10.0 Chart가 생성하는 세 Deployment를 각각 확인한다.
+for deployment_name in external-secrets external-secrets-webhook external-secrets-cert-controller; do
+  kubectl rollout status "deployment/${deployment_name}" \
   --namespace "${ESO_NAMESPACE}" \
-  --selector=app.kubernetes.io/instance=external-secrets \
   --timeout=5m
+done
 
 kubectl get deployment \
   --namespace "${KUBE_NAMESPACE}" \
@@ -410,8 +331,36 @@ kubectl get deployment \
   --namespace "${ESO_NAMESPACE}" \
   --selector=app.kubernetes.io/instance=external-secrets
 
+# Terraform Pod Identity와 연결될 정확한 플랫폼 ServiceAccount 이름을 검증한다.
 kubectl get serviceaccount \
-  "eso-secrets-reader" "${CART_SERVICE_ACCOUNT}" \
-  --namespace "${APP_NAMESPACE}"
+  aws-load-balancer-controller-sa \
+  cluster-autoscaler-sa \
+  --namespace "${KUBE_NAMESPACE}"
+
+kubectl get serviceaccount \
+  external-secrets-sa \
+  --namespace "${ESO_NAMESPACE}"
+
+# svc.sh가 설치한 플랫폼 Pod가 실제 MGMT Node에 배치되었는지 확인한다.
+verify_platform_pod_nodes \
+  "${KUBE_NAMESPACE}" \
+  "app.kubernetes.io/name=aws-load-balancer-controller,app.kubernetes.io/instance=aws-load-balancer-controller" \
+  "AWS Load Balancer Controller"
+verify_platform_pod_nodes \
+  "${KUBE_NAMESPACE}" \
+  "app.kubernetes.io/name=aws-cluster-autoscaler,app.kubernetes.io/instance=cluster-autoscaler" \
+  "Cluster Autoscaler"
+verify_platform_pod_nodes \
+  "${ESO_NAMESPACE}" \
+  "app.kubernetes.io/name=external-secrets,app.kubernetes.io/instance=external-secrets" \
+  "ESO controller"
+verify_platform_pod_nodes \
+  "${ESO_NAMESPACE}" \
+  "app.kubernetes.io/name=external-secrets-webhook,app.kubernetes.io/instance=external-secrets" \
+  "ESO webhook"
+verify_platform_pod_nodes \
+  "${ESO_NAMESPACE}" \
+  "app.kubernetes.io/name=external-secrets-cert-controller,app.kubernetes.io/instance=external-secrets" \
+  "ESO cert-controller"
 
 log "설치가 완료되었습니다. 다음으로 ESO.yaml과 ExternalSecret을 적용하세요."
