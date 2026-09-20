@@ -8,10 +8,7 @@ spec:
     aws:
       service: ParameterStore
       region: ap-northeast-2
-      auth:
-        jwt:
-          serviceAccountRef:
-            name: eso-secrets-reader
+
 ---
 apiVersion: external-secrets.io/v1
 kind: SecretStore
@@ -23,10 +20,7 @@ spec:
     aws:
       service: SecretsManager
       region: ap-northeast-2
-      auth:
-        jwt:
-          serviceAccountRef:
-            name: eso-secrets-reader
+
 ---
 # Prerequisites: ESO, retail-store/eso-secrets-reader, and the two SecretStores in ESO.yaml.
 # AWS region: ap-northeast-2. Create the AWS source values before applying this file.
