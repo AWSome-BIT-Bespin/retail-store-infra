@@ -83,19 +83,24 @@ install_helm_if_missing() {
 validate_management_nodes() {
   local node_rows
   local node_name
+  local zone
+  local ready
+  local unschedulable
   local taints
+  local ready_count=0
+  local -A ready_zones=()
   local expected_taint="${MGMT_TAINT_KEY}=${MGMT_TAINT_VALUE}=${MGMT_TAINT_EFFECT}"
 
-  # MGMT Node가 없는 상태에서 nodeSelector를 적용하면
-  # 플랫폼 Pod가 스케줄되지 못하고 Pending 상태가 될 수 있으므로 선행 검증한다.
+  # HA 분산을 위해 Ready이며 cordon되지 않은 MGMT Node가
+  # 최소 두 대, 서로 다른 AZ에 있어야 한다.
   node_rows="$(kubectl get nodes \
     --selector "${MGMT_NODE_LABEL_KEY}=${MGMT_NODE_LABEL_VALUE}" \
-    --output 'jsonpath={range .items[*]}{.metadata.name}{"\t"}{range .spec.taints[*]}{.key}={.value}={.effect}{" "}{end}{"\n"}{end}')"
+    --output 'jsonpath={range .items[*]}{.metadata.name}{"|"}{.metadata.labels.topology\.kubernetes\.io/zone}{"|"}{.status.conditions[?(@.type=="Ready")].status}{"|"}{.spec.unschedulable}{"|"}{range .spec.taints[*]}{.key}={.value}={.effect}{" "}{end}{"\n"}{end}')"
 
   [[ -n "${node_rows}" ]] ||
     die "MGMT Node를 찾지 못했습니다: ${MGMT_NODE_LABEL_KEY}=${MGMT_NODE_LABEL_VALUE}"
 
-  while IFS=$'\t' read -r node_name taints; do
+  while IFS='|' read -r node_name zone ready unschedulable taints; do
     [[ -n "${node_name}" ]] || continue
     case " ${taints} " in
       *" ${expected_taint} "*)
@@ -104,11 +109,61 @@ validate_management_nodes() {
         die "Node ${node_name}에 필요한 taint가 없습니다: ${MGMT_TAINT_KEY}=${MGMT_TAINT_VALUE}:${MGMT_TAINT_EFFECT}"
         ;;
     esac
+    if [[ "${ready}" != "True" || "${unschedulable}" == "true" ]]; then
+      log "HA 배치 후보에서 제외: ${node_name} (Ready=${ready}, unschedulable=${unschedulable:-false})"
+      continue
+    fi
+    [[ -n "${zone}" ]] ||
+      die "Node ${node_name}에 topology.kubernetes.io/zone 라벨이 없습니다."
+    ready_count=$((ready_count + 1))
+    ready_zones["${zone}"]=1
   done <<< "${node_rows}"
 
-  log "Management Node 확인 완료"
+  [[ "${ready_count}" -ge 2 ]] ||
+    die "HA 배치에는 Ready이며 cordon되지 않은 MGMT Node가 최소 두 대 필요합니다: ${ready_count}대"
+  [[ "${#ready_zones[@]}" -ge 2 ]] ||
+    die "HA 배치에는 서로 다른 AZ가 최소 두 개 필요합니다: ${!ready_zones[*]}"
+
+  log "Management Node 확인 완료: ${ready_count}대, AZ=${!ready_zones[*]}"
   log "label: ${MGMT_NODE_LABEL_KEY}=${MGMT_NODE_LABEL_VALUE}"
   log "taint: ${MGMT_TAINT_KEY}=${MGMT_TAINT_VALUE}:${MGMT_TAINT_EFFECT}"
+}
+
+# 각 Deployment의 같은 revision만 세어 롤링 업데이트 후에도 분산을 유지한다.
+# minDomains=2는 장애 시 같은 노드/AZ에 두 복제본을 몰아넣지 않도록 한다.
+platform_topology_constraints() {
+  local app_name="$1"
+  local release_name="$2"
+  cat <<EOF
+[
+  {
+    "maxSkew": 1,
+    "minDomains": 2,
+    "topologyKey": "kubernetes.io/hostname",
+    "whenUnsatisfiable": "DoNotSchedule",
+    "nodeAffinityPolicy": "Honor",
+    "nodeTaintsPolicy": "Honor",
+    "labelSelector": {"matchLabels": {
+      "app.kubernetes.io/name": "${app_name}",
+      "app.kubernetes.io/instance": "${release_name}"
+    }},
+    "matchLabelKeys": ["pod-template-hash"]
+  },
+  {
+    "maxSkew": 1,
+    "minDomains": 2,
+    "topologyKey": "topology.kubernetes.io/zone",
+    "whenUnsatisfiable": "DoNotSchedule",
+    "nodeAffinityPolicy": "Honor",
+    "nodeTaintsPolicy": "Honor",
+    "labelSelector": {"matchLabels": {
+      "app.kubernetes.io/name": "${app_name}",
+      "app.kubernetes.io/instance": "${release_name}"
+    }},
+    "matchLabelKeys": ["pod-template-hash"]
+  }
+]
+EOF
 }
 
 verify_platform_pod_nodes() {
@@ -119,25 +174,46 @@ verify_platform_pod_nodes() {
   local pod_name
   local node_name
   local node_label
+  local zone
+  local ready
+  local deletion_timestamp
+  local pod_count=0
+  local -A pod_nodes=()
+  local -A pod_zones=()
 
-  # nodeSelector/toleration 설정이 실제 스케줄링 결과까지 반영되었는지 확인한다.
+  # 종료 중인 이전 Pod를 제외하고, Ready 복제본 두 개의 노드/AZ 분산을 확인한다.
   pod_rows="$(kubectl get pods \
     --namespace "${namespace}" \
     --selector "${selector}" \
     --field-selector status.phase=Running \
-    --output 'jsonpath={range .items[*]}{.metadata.name}{"\t"}{.spec.nodeName}{"\n"}{end}')"
+    --output 'jsonpath={range .items[*]}{.metadata.name}{"|"}{.spec.nodeName}{"|"}{.status.conditions[?(@.type=="Ready")].status}{"|"}{.metadata.deletionTimestamp}{"\n"}{end}')"
 
   [[ -n "${pod_rows}" ]] ||
     die "${component} 실행 Pod를 찾지 못했습니다."
 
-  while IFS=$'\t' read -r pod_name node_name; do
+  while IFS='|' read -r pod_name node_name ready deletion_timestamp; do
     [[ -n "${pod_name}" ]] || continue
+    [[ -z "${deletion_timestamp}" ]] || continue
+    [[ "${ready}" == "True" ]] ||
+      die "${component} Pod ${pod_name}가 Ready 상태가 아닙니다."
     node_label="$(kubectl get node "${node_name}" \
       --output "jsonpath={.metadata.labels['${MGMT_NODE_LABEL_KEY}']}")"
     [[ "${node_label}" == "${MGMT_NODE_LABEL_VALUE}" ]] ||
       die "${component} Pod ${pod_name}가 MGMT Node가 아닌 ${node_name}에 배치되었습니다."
-    log "${component} Pod 배치 확인: ${pod_name} -> ${node_name}"
+    zone="$(kubectl get node "${node_name}" \
+      --output 'jsonpath={.metadata.labels.topology\.kubernetes\.io/zone}')"
+    [[ -n "${zone}" ]] || die "Node ${node_name}에 AZ 라벨이 없습니다."
+    pod_count=$((pod_count + 1))
+    pod_nodes["${node_name}"]=1
+    pod_zones["${zone}"]=1
+    log "${component} Pod 배치 확인: ${pod_name} -> ${node_name} (${zone})"
   done <<< "${pod_rows}"
+
+  [[ "${pod_count}" -eq 2 ]] ||
+    die "${component}의 Ready 복제본이 두 개가 아닙니다: ${pod_count}개"
+  [[ "${#pod_nodes[@]}" -eq 2 && "${#pod_zones[@]}" -eq 2 ]] ||
+    die "${component} 복제본이 서로 다른 두 MGMT Node/AZ에 분산되지 않았습니다."
+  log "${component} HA 배치 확인 완료: Ready 2개, Node 2대, AZ 2개"
 }
 
 # APP/MGMT 두 Managed Node Group 모두 Cluster Autoscaler의
@@ -248,6 +324,10 @@ helm upgrade --install aws-load-balancer-controller \
   --set "vpcId=${VPC_ID}" \
   --set serviceAccount.create=true \
   --set serviceAccount.name=aws-load-balancer-controller-sa \
+  --set replicaCount=2 \
+  --set podDisruptionBudget.maxUnavailable=1 \
+  --set-json 'updateStrategy={"type":"RollingUpdate","rollingUpdate":{"maxSurge":1,"maxUnavailable":0}}' \
+  --set-json "topologySpreadConstraints=$(platform_topology_constraints aws-load-balancer-controller aws-load-balancer-controller)" \
   --set-string "nodeSelector.${MGMT_NODE_LABEL_KEY}=${MGMT_NODE_LABEL_VALUE}" \
   --set-string "tolerations[0].key=${MGMT_TAINT_KEY}" \
   --set-string "tolerations[0].operator=Equal" \
@@ -271,6 +351,11 @@ helm upgrade --install cluster-autoscaler \
   --set "image.tag=${CLUSTER_AUTOSCALER_VERSION}" \
   --set rbac.serviceAccount.create=true \
   --set rbac.serviceAccount.name=cluster-autoscaler-sa \
+  --set replicaCount=2 \
+  --set extraArgs.leader-elect=true \
+  --set podDisruptionBudget.maxUnavailable=1 \
+  --set-json 'updateStrategy={"type":"RollingUpdate","rollingUpdate":{"maxSurge":1,"maxUnavailable":0}}' \
+  --set-json "topologySpreadConstraints=$(platform_topology_constraints aws-cluster-autoscaler cluster-autoscaler)" \
   --set-string "nodeSelector.${MGMT_NODE_LABEL_KEY}=${MGMT_NODE_LABEL_VALUE}" \
   --set-string "tolerations[0].key=${MGMT_TAINT_KEY}" \
   --set-string "tolerations[0].operator=Equal" \
@@ -293,6 +378,22 @@ helm upgrade --install external-secrets \
   --set installCRDs=true \
   --set serviceAccount.create=true \
   --set serviceAccount.name=external-secrets-sa \
+  --set replicaCount=2 \
+  --set webhook.replicaCount=2 \
+  --set certController.replicaCount=2 \
+  --set leaderElect=true \
+  --set podDisruptionBudget.enabled=true \
+  --set podDisruptionBudget.minAvailable=1 \
+  --set webhook.podDisruptionBudget.enabled=true \
+  --set webhook.podDisruptionBudget.minAvailable=1 \
+  --set certController.podDisruptionBudget.enabled=true \
+  --set certController.podDisruptionBudget.minAvailable=1 \
+  --set-json 'strategy={"type":"RollingUpdate","rollingUpdate":{"maxSurge":1,"maxUnavailable":0}}' \
+  --set-json 'webhook.strategy={"type":"RollingUpdate","rollingUpdate":{"maxSurge":1,"maxUnavailable":0}}' \
+  --set-json 'certController.strategy={"type":"RollingUpdate","rollingUpdate":{"maxSurge":1,"maxUnavailable":0}}' \
+  --set-json "topologySpreadConstraints=$(platform_topology_constraints external-secrets external-secrets)" \
+  --set-json "webhook.topologySpreadConstraints=$(platform_topology_constraints external-secrets-webhook external-secrets)" \
+  --set-json "certController.topologySpreadConstraints=$(platform_topology_constraints external-secrets-cert-controller external-secrets)" \
   --set-string "global.nodeSelector.${MGMT_NODE_LABEL_KEY}=${MGMT_NODE_LABEL_VALUE}" \
   --set-string "global.tolerations[0].key=${MGMT_TAINT_KEY}" \
   --set-string "global.tolerations[0].operator=Equal" \
@@ -341,7 +442,7 @@ kubectl get serviceaccount \
   external-secrets-sa \
   --namespace "${ESO_NAMESPACE}"
 
-# svc.sh가 설치한 플랫폼 Pod가 실제 MGMT Node에 배치되었는지 확인한다.
+# svc.sh가 설치한 각 플랫폼의 Ready Pod 두 개가 서로 다른 MGMT Node/AZ에 배치됐는지 확인한다.
 verify_platform_pod_nodes \
   "${KUBE_NAMESPACE}" \
   "app.kubernetes.io/name=aws-load-balancer-controller,app.kubernetes.io/instance=aws-load-balancer-controller" \

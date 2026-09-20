@@ -1,0 +1,53 @@
+apiVersion: monitoring.whatap.com/v2alpha1
+kind: WhatapAgent
+metadata:
+  name: whatap
+spec:
+  features:
+    apm:
+      instrumentation:
+        enabled: true
+        targets:
+          - name: retail-java
+            enabled: true
+            language: java
+            whatapApmVersions:
+              java: latest
+            namespaceSelector:
+              matchNames:
+                - retail-store
+            podSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                    - carts
+                    - orders
+                    - ui
+            config:
+              mode: default
+
+    # 중앙 수집 에이전트는 mgmt에, 노드 수집 에이전트는 각 노드에 배치합니다.
+    k8sAgent:
+      customAgentImageFullName: public.ecr.aws/whatap/kube_mon:1.8.7
+      masterAgent:
+        enabled: true
+        nodeSelector:
+          workload: mgmt
+        tolerations:
+          - key: dedicated
+            operator: Equal
+            value: mgmt
+            effect: NoSchedule
+      nodeAgent:
+        enabled: true
+        # 각 노드를 수집하는 DaemonSet이므로 mgmt 전용 nodeSelector는 설정하지 않습니다.
+        tolerations:
+          - key: dedicated
+            operator: Equal
+            value: mgmt
+            effect: NoSchedule
+        runtime: containerd
+        runtimeSocketPath: /var/run/containerd/containerd.sock
+      gpuMonitoring:
+        enabled: false
