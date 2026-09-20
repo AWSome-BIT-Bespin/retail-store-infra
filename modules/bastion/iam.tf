@@ -33,6 +33,11 @@ resource "aws_iam_role_policy_attachment" "bastion_admin" {
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
 
+resource "aws_iam_role_policy_attachment" "ssm_core" {
+  role       = aws_iam_role.bastion.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
 
 resource "aws_iam_instance_profile" "bastion" {
   name = "${var.bastion_role_name}-profile"
@@ -49,4 +54,9 @@ output "role_name" {
 
 output "instance_profile_name" {
   value = aws_iam_instance_profile.bastion.name
+
+  # EC2에 프로필을 연결하기 전에 SSM 권한을 준비한다.
+  depends_on = [
+    aws_iam_role_policy_attachment.ssm_core,
+  ]
 }

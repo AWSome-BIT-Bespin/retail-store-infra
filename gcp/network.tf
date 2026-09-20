@@ -9,19 +9,6 @@ resource "google_compute_network" "retail" {
   }
 }
 
-resource "google_compute_subnetwork" "admin" {
-  name                     = "retail-dr-admin-subnet"
-  region                   = "asia-northeast3"
-  network                  = google_compute_network.retail.id
-  ip_cidr_range            = "10.10.0.0/20"
-  stack_type               = "IPV4_ONLY"
-  private_ip_google_access = false
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
 resource "google_compute_subnetwork" "gke" {
   name                     = "retail-dr-gke-subnet"
   region                   = "asia-northeast3"

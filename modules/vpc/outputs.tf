@@ -4,6 +4,12 @@ output "private_app_subnet_ids" {
     aws_subnet.private-app-a.id,
     aws_subnet.private-app-b.id,
   ]
+
+ 
+  depends_on = [
+    aws_route_table_association.private_app_a,
+    aws_route_table_association.private_app_b,
+  ]
 }
 
 output "vpc_id" {
