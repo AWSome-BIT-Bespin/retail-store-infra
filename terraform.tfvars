@@ -30,7 +30,7 @@ eks_node_group_name = "retail-ng"
 
 eks_node_scaling = { desired_size = 2, min_size = 2, max_size = 4 }
 
-eks_node_instance_types = null
+eks_node_instance_types = ["t3.large"]
 
 eks_node_labels = { worldload = "retail" }
 eks_node_labels_mgmt = { worldload = "mgmt" }

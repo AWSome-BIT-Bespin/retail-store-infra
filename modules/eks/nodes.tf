@@ -59,7 +59,10 @@ resource "aws_eks_node_group" "retail_mgmt_ng" {
     aws_eks_addon.retail_kube_proxy,
   ]
 
-  labels = var.node_labels_mgmt
+    labels = {
+    workload = "mgmt"
+  } 
+
   taint {
   key    = "dedicated"
   value  = "mgmt"
