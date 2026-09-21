@@ -1,0 +1,14 @@
+{
+  "snapshot_serial": 16,
+  "managed_resource_instances_compared": 34,
+  "actions": {
+    "create": 17,
+    "update": 1,
+    "delete": 0,
+    "no-op": 16
+  },
+  "moved_resources_in_snapshot": 12,
+  "declared_moves": 16,
+  "resource_values_and_actions_equal": true,
+  "method": "Both plans use the same saved state with local backend and refresh=false. No apply or remote state write."
+}

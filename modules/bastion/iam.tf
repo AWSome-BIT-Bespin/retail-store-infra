@@ -1,0 +1,62 @@
+
+resource "aws_iam_role" "bastion" {
+  name = var.bastion_role_name
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "ec2.amazonaws.com"
+      }
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "admin_eks" {
+  name = "admin-target-eks"
+  role = aws_iam_role.bastion.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action = "eks:DescribeCluster"
+      Resource = var.eks_cluster_arn
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "bastion_admin" {
+  role       = aws_iam_role.bastion.name
+  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "ssm_core" {
+  role       = aws_iam_role.bastion.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+
+resource "aws_iam_instance_profile" "bastion" {
+  name = "${var.bastion_role_name}-profile"
+  role = aws_iam_role.bastion.name
+}
+
+output "role_arn" {
+  value = aws_iam_role.bastion.arn
+}
+
+output "role_name" {
+  value = aws_iam_role.bastion.name
+}
+
+output "instance_profile_name" {
+  value = aws_iam_instance_profile.bastion.name
+
+  # EC2에 프로필을 연결하기 전에 SSM 권한을 준비한다.
+  depends_on = [
+    aws_iam_role_policy_attachment.ssm_core,
+  ]
+}
