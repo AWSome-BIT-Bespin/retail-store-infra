@@ -3,10 +3,6 @@ import {
   id = "projects/kdt4-3/global/networks/retail-dr-vpc"
 }
 import {
-  to = google_compute_subnetwork.admin
-  id = "projects/kdt4-3/regions/asia-northeast3/subnetworks/retail-dr-admin-subnet"
-}
-import {
   to = google_compute_subnetwork.gke
   id = "projects/kdt4-3/regions/asia-northeast3/subnetworks/retail-dr-gke-subnet"
 }

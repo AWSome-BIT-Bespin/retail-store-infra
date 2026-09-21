@@ -24,16 +24,7 @@ resource "google_compute_subnetwork" "gke" {
     reserved_internal_range = "networkconnectivity.googleapis.com/projects/kdt4-3/locations/global/internalRanges/gke-retail-dr-gke-pods-89de90ed"
   }
 
-  # These two ranges exist but are not used by the current cluster.
-  secondary_ip_range {
-    range_name    = "retail-dr-pods"
-    ip_cidr_range = "10.24.0.0/16"
-  }
 
-  secondary_ip_range {
-    range_name    = "retail-dr-services"
-    ip_cidr_range = "10.25.0.0/20"
-  }
 
   lifecycle {
     prevent_destroy = true
@@ -55,10 +46,18 @@ resource "google_compute_router_nat" "retail" {
   enable_dynamic_port_allocation      = false
   enable_endpoint_independent_mapping = false
 
-  subnetwork {
-    name                    = google_compute_subnetwork.gke.id
-    source_ip_ranges_to_nat = ["ALL_IP_RANGES"]
-  }
+subnetwork {
+  name = google_compute_subnetwork.gke.id
+
+  source_ip_ranges_to_nat = [
+    "PRIMARY_IP_RANGE",
+    "LIST_OF_SECONDARY_IP_RANGES",
+  ]
+
+  secondary_ip_range_names = [
+    "gke-retail-dr-gke-pods-89de90ed",
+  ]
+}
 
   log_config {
     enable = false
