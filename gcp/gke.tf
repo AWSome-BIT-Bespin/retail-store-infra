@@ -92,7 +92,7 @@ resource "google_container_cluster" "retail" {
   }
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
     ignore_changes  = [initial_node_count, remove_default_node_pool]
   }
 }
@@ -170,7 +170,7 @@ resource "google_container_node_pool" "retail" {
   depends_on = [google_project_iam_member.gke_node]
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
     # Imported API returns an empty policy with type=null. Terraform requires
     # a real type if configured; leave only this unused policy unmanaged.
     ignore_changes = [placement_policy]

@@ -7,7 +7,7 @@ resource "google_compute_global_address" "private_services" {
   network       = google_compute_network.retail.id
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
   }
 }
 
@@ -17,7 +17,7 @@ resource "google_service_networking_connection" "private_services" {
   reserved_peering_ranges = [google_compute_global_address.private_services.name]
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
   }
 }
 

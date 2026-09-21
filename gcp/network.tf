@@ -5,7 +5,7 @@ resource "google_compute_network" "retail" {
   routing_mode            = "GLOBAL"
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
   }
 }
 
@@ -27,7 +27,7 @@ resource "google_compute_subnetwork" "gke" {
 
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
   }
 }
 

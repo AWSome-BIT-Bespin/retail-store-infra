@@ -52,7 +52,7 @@ resource "google_compute_instance" "bastion" {
   depends_on = [google_project_iam_member.ops]
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
     # Console browser-SSH writes short-lived public keys to this single key.
     ignore_changes = [metadata["ssh-keys"]]
   }
