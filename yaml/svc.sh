@@ -334,6 +334,7 @@ helm upgrade --install aws-load-balancer-controller \
   --set-string "tolerations[0].value=${MGMT_TAINT_VALUE}" \
   --set-string "tolerations[0].effect=${MGMT_TAINT_EFFECT}" \
   --set-string 'ingressClassParams.spec.subnets.tags.Tier[0]=public' \
+  --set-string "podLabels.workload=mgmt" \
   --wait \
   --timeout 10m
 
@@ -363,6 +364,7 @@ helm upgrade --install cluster-autoscaler \
   --set-string "tolerations[0].effect=${MGMT_TAINT_EFFECT}" \
   --set extraArgs.balance-similar-node-groups=true \
   --set extraArgs.expander=least-waste \
+  --set-string "podLabels.workload=mgmt" \
   --wait \
   --timeout 10m
 
@@ -399,6 +401,7 @@ helm upgrade --install external-secrets \
   --set-string "global.tolerations[0].operator=Equal" \
   --set-string "global.tolerations[0].value=${MGMT_TAINT_VALUE}" \
   --set-string "global.tolerations[0].effect=${MGMT_TAINT_EFFECT}" \
+  --set-string "global.podLabels.workload=mgmt" \
   --wait \
   --timeout 10m
 
