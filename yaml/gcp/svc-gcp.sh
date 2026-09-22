@@ -105,6 +105,12 @@ CLUSTER_STATUS="$(gcloud container clusters describe "$GKE_CLUSTER_NAME" \
 [[ "$CLUSTER_STATUS" == "RUNNING" ]] ||
   die "GKE 클러스터가 RUNNING 상태가 아닙니다: $CLUSTER_STATUS"
 
+log "GKE HTTP Load Balancing 활성화"
+gcloud container clusters update "$GKE_CLUSTER_NAME" \
+  --project "$GCP_PROJECT_ID" \
+  --location "$GKE_LOCATION" \
+  --update-addons=HttpLoadBalancing=ENABLED
+
 log "GKE kubeconfig 구성"
 gcloud container clusters get-credentials "$GKE_CLUSTER_NAME" \
   --project "$GCP_PROJECT_ID" \
