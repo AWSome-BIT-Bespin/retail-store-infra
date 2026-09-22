@@ -29,8 +29,6 @@ spec:
 
     k8sAgent:
       customAgentImageFullName: public.ecr.aws/whatap/kube_mon:1.9.27
-      gke:
-        enabled: true
       # GKE에는 mgmt 전용 노드풀이 없어 특정 노드풀을 지정하지 않습니다.
       masterAgent:
         enabled: true

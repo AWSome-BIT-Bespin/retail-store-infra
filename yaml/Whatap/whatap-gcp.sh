@@ -54,5 +54,7 @@ helm upgrade --install whatap-operator whatap/whatap-operator \
   --values "${SCRIPT_DIR}/whatap-operator-values-gcp.yaml" \
   --wait --timeout 5m
 
+kubectl --context "$GKE_CONTEXT" apply --dry-run=server --validate=strict \
+  -f "${SCRIPT_DIR}/whatap_operator_gcp.yaml"
 kubectl --context "$GKE_CONTEXT" apply -f "${SCRIPT_DIR}/whatap_operator_gcp.yaml"
 kubectl --context "$GKE_CONTEXT" get pods -n whatap-monitoring -o wide
