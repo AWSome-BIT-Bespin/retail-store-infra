@@ -1,0 +1,3 @@
+# GKE에는 mgmt 전용 노드풀이 없으므로 Operator의 노드풀 지정을 비웁니다.
+nodeSelector: {}
+tolerations: []
