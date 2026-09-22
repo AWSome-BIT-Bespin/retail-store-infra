@@ -84,17 +84,53 @@ install_helm_if_missing() {
   helm version --short
 }
 
-[[ -n "${GCP_PROJECT_ID:-}" ]] ||
-  die 'GCP_PROJECT_ID를 설정해 주세요. 예: export GCP_PROJECT_ID="kdt4-3"'
-[[ -n "${GKE_CLUSTER_NAME:-}" ]] ||
-  die 'GKE_CLUSTER_NAME을 실제 GKE 클러스터 이름으로 설정해 주세요.'
-[[ -n "${GKE_LOCATION:-}" ]] ||
-  die 'GKE_LOCATION을 실제 클러스터의 region 또는 zone으로 설정해 주세요.'
-
 log "필수 명령 확인"
 for command_name in gcloud gke-gcloud-auth-plugin kubectl; do
   require_command "$command_name"
 done
+
+# 직접 지정한 프로젝트가 없으면 gcloud 현재 설정 사용
+GCP_PROJECT_ID="${GCP_PROJECT_ID:-$(gcloud config get project)}"
+
+[[ -n "$GCP_PROJECT_ID" && "$GCP_PROJECT_ID" != "(unset)" ]] ||
+  die '먼저 gcloud config set project PROJECT_ID로 프로젝트를 지정해 주세요.'
+
+# 클러스터 이름 또는 위치가 없으면 조회해서 채우기
+if [[ -z "${GKE_CLUSTER_NAME:-}" || -z "${GKE_LOCATION:-}" ]]; then
+  log "GKE 클러스터 자동 조회: $GCP_PROJECT_ID"
+
+  gke_rows="$(gcloud container clusters list \
+    --project "$GCP_PROJECT_ID" \
+    --format='value(name,location)')" ||
+    die 'GKE 클러스터 조회에 실패했습니다.'
+
+  gke_candidates=()
+  while IFS=$'\t' read -r gke_name gke_location; do
+    [[ -n "$gke_name" && -n "$gke_location" ]] || continue
+
+    # 일부 값을 직접 지정했다면 해당 조건에 맞는 클러스터만 선택
+    [[ -z "${GKE_CLUSTER_NAME:-}" ||
+       "$gke_name" == "${GKE_CLUSTER_NAME:-}" ]] || continue
+    [[ -z "${GKE_LOCATION:-}" ||
+       "$gke_location" == "${GKE_LOCATION:-}" ]] || continue
+
+    gke_candidates+=("$gke_name"$'\t'"$gke_location")
+  done <<< "$gke_rows"
+
+  case "${#gke_candidates[@]}" in
+    0)
+      die '조건에 맞는 GKE 클러스터가 없습니다.'
+      ;;
+    1)
+      IFS=$'\t' read -r GKE_CLUSTER_NAME GKE_LOCATION \
+        <<< "${gke_candidates[0]}"
+      ;;
+    *)
+      printf '선택 가능한 클러스터:\n%s\n' "${gke_candidates[@]}"
+      die 'GKE_CLUSTER_NAME 또는 GKE_LOCATION으로 대상을 지정해 주세요.'
+      ;;
+  esac
+fi
 
 log "GKE 클러스터 확인: $GCP_PROJECT_ID / $GKE_LOCATION / $GKE_CLUSTER_NAME"
 CLUSTER_STATUS="$(gcloud container clusters describe "$GKE_CLUSTER_NAME" \
