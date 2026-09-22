@@ -364,7 +364,7 @@ helm upgrade --install cluster-autoscaler \
   --set-string "tolerations[0].effect=${MGMT_TAINT_EFFECT}" \
   --set extraArgs.balance-similar-node-groups=true \
   --set extraArgs.expander=least-waste \
-  --set-string "podLabels.workload=mgmt" \
+  --set-string "additionalLabels.workload=mgmt" \
   --wait \
   --timeout 10m
 
@@ -401,7 +401,7 @@ helm upgrade --install external-secrets \
   --set-string "global.tolerations[0].operator=Equal" \
   --set-string "global.tolerations[0].value=${MGMT_TAINT_VALUE}" \
   --set-string "global.tolerations[0].effect=${MGMT_TAINT_EFFECT}" \
-  --set-string "additionalLabels.workload=mgmt" \
+  --set-string "global.podLabels.workload=mgmt" \
   --wait \
   --timeout 10m
 
