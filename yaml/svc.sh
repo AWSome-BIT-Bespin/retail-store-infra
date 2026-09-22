@@ -401,7 +401,7 @@ helm upgrade --install external-secrets \
   --set-string "global.tolerations[0].operator=Equal" \
   --set-string "global.tolerations[0].value=${MGMT_TAINT_VALUE}" \
   --set-string "global.tolerations[0].effect=${MGMT_TAINT_EFFECT}" \
-  --set-string "global.podLabels.workload=mgmt" \
+  --set-string "additionalLabels.workload=mgmt" \
   --wait \
   --timeout 10m
 
