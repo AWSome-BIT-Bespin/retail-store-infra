@@ -102,7 +102,7 @@ resource "google_container_node_pool" "retail" {
   location          = "asia-northeast3-a"
   cluster           = google_container_cluster.retail.name
   node_locations    = ["asia-northeast3-a"]
-  node_count        = 1
+  node_count        = 2
   max_pods_per_node = 110
 
   # No autoscaling block: the observed node pool has autoscaling disabled.

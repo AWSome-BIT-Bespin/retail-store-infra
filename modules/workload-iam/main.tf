@@ -1,71 +1,83 @@
-# variable "cluster_name" {
-#   type = string
-# }
+resource "aws_iam_role" "retail-cart-dynamo-role" {
+  name = var.role_name
 
-# variable "name_prefix" {
-#   type = string
-# }
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
 
-# variable "workloads" {
-#   type = map(object({
-#     namespace       = string
-#     service_account = string
-#     policy_json     = string
-#   }))
-# }
+    Statement = [{
+      Effect = "Allow"
 
-# resource "aws_iam_role" "this" {
-#   for_each = var.workloads
+      Principal = {
+        Service = "pods.eks.amazonaws.com"
+      }
 
-#   name = "${var.name_prefix}-${each.key}"
+      Action = [
+        "sts:AssumeRole",
+        "sts:TagSession",
+      ]
 
-#   assume_role_policy = jsonencode({
-#     Version = "2012-10-17"
+      Condition = {
+        StringEquals = {
+          "aws:RequestTag/eks-cluster-arn" = var.cluster_arn
 
-#     Statement = [{
-#       Effect = "Allow"
+          "aws:RequestTag/kubernetes-namespace" = var.namespace
 
-#       Principal = {
-#         Service = "pods.eks.amazonaws.com"
-#       }
+          "aws:RequestTag/kubernetes-service-account" = var.service_account
+        }
+      }
+    }]
+  })
+}
 
-#       Action = [
-#         "sts:AssumeRole",
-#         "sts:TagSession",
-#       ]
-#     }]
-#   })
+# Cart 테이블과 고객 조회 인덱스 접근 권한
+resource "aws_iam_policy" "retail-cart-dynamo-policy" {
+  name = var.policy_name
 
-#   tags = {
-#     Project   = "retail-infra"
-#     ManagedBy = "Terraform"
-#   }
-# }
+  policy = jsonencode({
+    Version = "2012-10-17"
 
-# resource "aws_iam_role_policy" "this" {
-#   for_each = var.workloads
+    Statement = [
+      {
+        Effect = "Allow"
 
-#   name   = "${var.name_prefix}-${each.key}"
-#   role   = aws_iam_role.this[each.key].id
-#   policy = each.value.policy_json
-# }
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Query",
+        ]
 
-# resource "aws_eks_pod_identity_association" "this" {
-#   for_each = var.workloads
+        Resource = var.dynamodb_table_arn
+      },
+      {
+        Effect = "Allow"
+        Action = ["dynamodb:Query"]
 
-#   cluster_name    = var.cluster_name
-#   namespace       = each.value.namespace
-#   service_account = each.value.service_account
-#   role_arn        = aws_iam_role.this[each.key].arn
+        Resource = format(
+          "%s/index/idx_global_customerId",
+          var.dynamodb_table_arn
+        )
+      }
+    ]
+  })
+}
 
-#   depends_on = [
-#     aws_iam_role_policy.this,
-#   ]
-# }
+# 역할에 DynamoDB 정책 연결
+resource "aws_iam_role_policy_attachment" "retail-cart-dynamo-policy" {
+  role       = aws_iam_role.retail-cart-dynamo-role.name
+  policy_arn = aws_iam_policy.retail-cart-dynamo-policy.arn
+}
 
-# output "role_arns" {
-#   value = {
-#     for name, role in aws_iam_role.this :
-#     name => role.arn
-#   }
-# }
+resource "aws_eks_pod_identity_association" "cart" {
+  cluster_name    = var.cluster_name
+  namespace       = var.namespace
+  service_account = var.service_account
+  role_arn        = aws_iam_role.retail-cart-dynamo-role.arn
+
+  disable_session_tags = false
+
+  depends_on = [
+    aws_iam_role_policy_attachment.retail-cart-dynamo-policy,
+  ]
+}

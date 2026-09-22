@@ -41,23 +41,6 @@ resource "aws_eks_pod_identity_association" "alb_controller" {
   ]
 }
 
-resource "aws_eks_pod_identity_association" "cart" {
-  cluster_name    = aws_eks_cluster.retail_cluster.name
-  namespace       = local.cart_namespace
-  service_account = local.cart_service_account
-  role_arn        = aws_iam_role.retail-cart-dynamo-role.arn
-
-  disable_session_tags = false
-
-  depends_on = [
-    aws_eks_addon.pod_identity_agent,
-    aws_iam_role_policy_attachment.retail-cart-dynamo-policy,
-  ]
-
-  
-  
-}
-
 
 resource "aws_eks_pod_identity_association" "eso" {
   cluster_name    = aws_eks_cluster.retail_cluster.name

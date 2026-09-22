@@ -18,7 +18,7 @@ resource "aws_eks_cluster" "retail_cluster" {
     # 기존 VPC의 앱용 private 서브넷 두 개
     subnet_ids = var.subnet_ids
 
-    endpoint_public_access  = true
+    endpoint_public_access  = var.endpoint_public_access
     endpoint_private_access = true
     
     security_group_ids = [aws_security_group.cp_sg.id]

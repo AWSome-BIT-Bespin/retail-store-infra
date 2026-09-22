@@ -78,3 +78,63 @@ moved {
   from = aws_db_instance.postgres
   to   = module.rds.aws_db_instance.postgres
 }
+
+moved {
+  from = module.bastion.aws_iam_role_policy.admin_eks
+  to   = aws_iam_role_policy.bastion_eks
+}
+
+moved {
+  from = module.eks.aws_eks_access_entry.bastion
+  to   = aws_eks_access_entry.bastion
+}
+
+moved {
+  from = module.eks.aws_eks_access_policy_association.bastion
+  to   = aws_eks_access_policy_association.bastion
+}
+
+moved {
+  from = aws_instance.bastion
+  to   = module.bastion.aws_instance.bastion
+}
+
+moved {
+  from = aws_security_group.bastion
+  to   = module.bastion.aws_security_group.bastion
+}
+
+moved {
+  from = aws_vpc_security_group_ingress_rule.bastion_ssh
+  to   = module.bastion.aws_vpc_security_group_ingress_rule.bastion_ssh
+}
+
+moved {
+  from = aws_vpc_security_group_ingress_rule.bastion_https
+  to   = module.bastion.aws_vpc_security_group_ingress_rule.bastion_https
+}
+
+moved {
+  from = aws_vpc_security_group_egress_rule.bastion_outbound
+  to   = module.bastion.aws_vpc_security_group_egress_rule.bastion_outbound
+}
+
+moved {
+  from = module.eks.aws_iam_role.retail-cart-dynamo-role
+  to   = module.workload_iam.aws_iam_role.retail-cart-dynamo-role
+}
+
+moved {
+  from = module.eks.aws_iam_policy.retail-cart-dynamo-policy
+  to   = module.workload_iam.aws_iam_policy.retail-cart-dynamo-policy
+}
+
+moved {
+  from = module.eks.aws_iam_role_policy_attachment.retail-cart-dynamo-policy
+  to   = module.workload_iam.aws_iam_role_policy_attachment.retail-cart-dynamo-policy
+}
+
+moved {
+  from = module.eks.aws_eks_pod_identity_association.cart
+  to   = module.workload_iam.aws_eks_pod_identity_association.cart
+}

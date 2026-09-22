@@ -28,12 +28,30 @@ eks_public_access_cidrs = ["0.0.0.0/0"]
 
 eks_node_group_name = "retail-ng"
 
-eks_node_scaling = { desired_size = 2, min_size = 2, max_size = 4 }
+eks_node_scaling_app = {
+  desired_size = 2
+  min_size     = 2
+  max_size     = 4
+}
 
-eks_node_instance_types = ["t3.large"]
+eks_node_scaling_mgmt = {
+  desired_size = 2
+  min_size     = 2
+  max_size     = 4
+}
 
-eks_node_labels = { worldload = "retail" }
-eks_node_labels_mgmt = { worldload = "mgmt" }
+eks_node_instance_types_app  = ["t3.large"]
+eks_node_instance_types_mgmt = ["t3.medium"]
+
+eks_node_labels = {
+  workload = "app"
+}
+
+eks_node_labels_mgmt = {
+  workload = "mgmt"
+}
+
+eks_endpoint_public_access = false
 
 
 eks_cluster_tags = { Name = "retail-infra-eks", Project = "retail-infra", Environment = "prod", ManagedBy = "Terraform" }
@@ -62,8 +80,7 @@ rds_skip_final_snapshot = true
 
 rds_final_snapshot_identifier = null
 
-rds_client_security_group_ids = []
-
+rds_client_security_group_ids = {}
 rds_tags = { Name = "retail-infra-postgres", Project = "retail-infra", ManagedBy = "Terraform" }
 
 

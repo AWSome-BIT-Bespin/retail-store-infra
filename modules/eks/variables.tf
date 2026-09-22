@@ -37,17 +37,61 @@ variable "node_group_name" {
   type        = string
 }
 
-variable "node_scaling" {
-  description = "노드 수. Autoscaler 도입 시 desired_size 관리 주체를 먼저 정하세요."
-  type        = object({ desired_size = number, min_size = number, max_size = number })
+variable "node_scaling_app" {
+  description = "APP 노드 그룹의 스케일 설정"
+
+  type = object({
+    desired_size = number
+    min_size     = number
+    max_size     = number
+  })
+
   validation {
-    condition     = var.node_scaling.min_size >= 0 && var.node_scaling.max_size > 0 && var.node_scaling.min_size <= var.node_scaling.desired_size && var.node_scaling.desired_size <= var.node_scaling.max_size && alltrue([for n in values(var.node_scaling) : floor(n) == n])
-    error_message = "정수 노드 수이며 min <= desired <= max 이어야 합니다."
+    condition = (
+      var.node_scaling_app.min_size >= 0 &&
+      var.node_scaling_app.max_size > 0 &&
+      var.node_scaling_app.min_size <= var.node_scaling_app.desired_size &&
+      var.node_scaling_app.desired_size <= var.node_scaling_app.max_size &&
+      alltrue([
+        for n in values(var.node_scaling_app) : floor(n) == n
+      ])
+    )
+
+    error_message = "APP 노드 수는 정수이며 0 <= min <= desired <= max, max >= 1이어야 합니다."
   }
 }
 
-variable "node_instance_types" {
-  description = "null이면 기존처럼 AWS 기본 선택을 유지합니다. 기존 노드 유형 확인 후 고정하세요."
+variable "node_scaling_mgmt" {
+  description = "MGMT 노드 그룹의 스케일 설정"
+
+  type = object({
+    desired_size = number
+    min_size     = number
+    max_size     = number
+  })
+
+  validation {
+    condition = (
+      var.node_scaling_mgmt.min_size >= 0 &&
+      var.node_scaling_mgmt.max_size > 0 &&
+      var.node_scaling_mgmt.min_size <= var.node_scaling_mgmt.desired_size &&
+      var.node_scaling_mgmt.desired_size <= var.node_scaling_mgmt.max_size &&
+      alltrue([
+        for n in values(var.node_scaling_mgmt) : floor(n) == n
+      ])
+    )
+
+    error_message = "MGMT 노드 수는 정수이며 0 <= min <= desired <= max, max >= 1이어야 합니다."
+  }
+}
+
+variable "node_instance_types_app" {
+  description = "APP 노드 그룹의 EC2 인스턴스 유형"
+  type        = list(string)
+}
+
+variable "node_instance_types_mgmt" {
+  description = "MGMT 노드 그룹의 EC2 인스턴스 유형"
   type        = list(string)
 }
 
@@ -79,16 +123,12 @@ variable "subnet_ids" {
   type        = list(string)
 }
 
-variable "bastion_principal_arn" {
-  description = "EKS 접근을 허용할 Bastion IAM 역할 ARN"
-  type        = string
-}
-
 variable "vpc_id" {
   
   type        = string
 }
 
-# variable "cp_sg.id" {
-#   type        = string
-# }
+variable "endpoint_public_access" {
+  description = "EKS Public API endpoint 활성화 여부"
+  type        = bool
+}

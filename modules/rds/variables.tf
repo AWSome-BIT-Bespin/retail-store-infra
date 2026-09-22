@@ -66,11 +66,17 @@ variable "final_snapshot_identifier" {
 }
 
 variable "client_security_group_ids" {
-  description = "DB 5432 접근을 허용할 실제 앱 ENI 보안 그룹 ID. 빈 집합이면 앱 접근 규칙 없음."
-  type        = set(string)
+  description = "DB 5432 접근을 허용할 대상 이름과 보안 그룹 ID"
+  type        = map(string)
+  default     = {}
+
   validation {
-    condition     = alltrue([for id in var.client_security_group_ids : can(regex("^sg-[0-9a-f]+$", id))])
-    error_message = "실제 sg-... ID를 지정하세요."
+    condition = alltrue([
+      for id in values(var.client_security_group_ids) :
+      can(regex("^sg-[0-9a-f]+$", id))
+    ])
+
+    error_message = "각 값에는 실제 sg-... 보안 그룹 ID를 지정하세요."
   }
 }
 

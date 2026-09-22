@@ -6,7 +6,16 @@ variable "vpc_id" {
   type = string
 }
 
-variable "eks_cluster_arn" {
-  description = "Bastion에서 조회할 EKS 클러스터 ARN"
-  type        = string
+
+
+variable "bastion_key_name" {
+  type = string
+}
+
+variable "bastion_admin_cidr" {
+  type = string
+}
+
+variable "private_app_subnet_ids"{
+  type = list(string)
 }

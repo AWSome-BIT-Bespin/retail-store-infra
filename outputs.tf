@@ -28,3 +28,11 @@ output "postgres" {
     admin_secret_arn  = module.rds.admin_secret_arn
   }
 }
+
+output "bastion_instance_id" {
+  value = module.bastion.bastion_instance_id
+}
+
+output "bastion_private_ip" {
+  value = module.bastion.bastion_private_ip
+}

@@ -20,3 +20,13 @@ resource "aws_vpc_security_group_egress_rule" "postgres_app" {
   ip_protocol       = "-1" # semantically equivalent to all ports
 }
 
+resource "aws_vpc_security_group_ingress_rule" "postgres_clients" {
+  for_each = var.client_security_group_ids
+
+  security_group_id            = aws_security_group.postgres.id
+  referenced_security_group_id = each.value
+
+  ip_protocol = "tcp"
+  from_port   = 5432
+  to_port     = 5432
+}

@@ -19,3 +19,12 @@ output "node_role_arn" {
 output "cluster_arn" {
   value = aws_eks_cluster.retail_cluster.arn
 } 
+
+output "pod_identity_cluster_name" {
+  description = "Pod Identity Agent 준비에 의존하는 클러스터 이름"
+  value       = aws_eks_cluster.retail_cluster.name
+
+  depends_on = [
+    aws_eks_addon.pod_identity_agent,
+  ]
+}
