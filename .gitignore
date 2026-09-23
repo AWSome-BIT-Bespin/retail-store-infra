@@ -3,6 +3,7 @@
 *.tfstate.*
 *.tfplan
 tfplan
+.terraform.lock.hcl
 *.plan.json
 crash.log
 crash.*.log
