@@ -1,7 +1,6 @@
 resource "aws_iam_role" "cluster_role" {
   name = var.cluster_role_name
 
-  # EKS 서비스가 이 역할을 사용할 수 있도록 허용합니다.
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -27,7 +26,6 @@ resource "aws_iam_role" "retail_nodes" {
     Statement = [{
       Effect = "Allow"
 
-      # EC2가 이 역할을 사용할 수 있도록 허용
       Principal = {   
         Service = "ec2.amazonaws.com"
       }
@@ -84,7 +82,7 @@ resource "aws_iam_role_policy_attachment" "retail-alb-controller-policy" {
 
 
 
-# Cluster Autoscaler 전용 IAM 역할
+
 resource "aws_iam_role" "retail-cluster-autoscaler-role" {
   name = "retail-cluster-autoscaler-role"
 
@@ -108,7 +106,7 @@ resource "aws_iam_role" "retail-cluster-autoscaler-role" {
   })
 }
 
-# 노드 그룹 조회 및 증설·축소 권한
+# 노드 그룹 권한
 resource "aws_iam_policy" "retail-cluster-autoscaler-policy" {
   name = "RetailClusterAutoscalerPolicy"
 
