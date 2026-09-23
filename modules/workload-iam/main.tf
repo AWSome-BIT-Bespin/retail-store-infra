@@ -63,7 +63,6 @@ resource "aws_iam_policy" "retail-cart-dynamo-policy" {
   })
 }
 
-# 역할에 DynamoDB 정책 연결
 resource "aws_iam_role_policy_attachment" "retail-cart-dynamo-policy" {
   role       = aws_iam_role.retail-cart-dynamo-role.name
   policy_arn = aws_iam_policy.retail-cart-dynamo-policy.arn
