@@ -1,0 +1,3 @@
+# The current state bucket was not established from this console inspection.
+bucket = "REPLACE_WITH_EXISTING_STATE_BUCKET"
+prefix = "retail-store/gcp/dr"

@@ -1,0 +1,14 @@
+{
+  "terraform": "1.16.0",
+  "google_provider": "8.3.0",
+  "fmt": "pass",
+  "validate": {
+    "errors": 0,
+    "valid": true,
+    "warnings": 0
+  },
+  "imports": 19,
+  "live_plan_executed": false,
+  "cloud_mutations": false,
+  "original_repository_modified": false
+}
