@@ -226,3 +226,7 @@ variable "bastion_admin_cidr" {
 variable "eks_endpoint_public_access" {
   type        = bool
 }
+
+variable "bastion_role_name" {
+  type        = string
+}
