@@ -7,7 +7,7 @@ module "vpc" {
 
 module "bastion" {
   source           = "./modules/bastion"
-  bastion_role_name = "retail-bastion-role"
+  bastion_role_name = var.bastion_role_name
   vpc_id           = module.vpc.vpc_id
   bastion_key_name  = var.bastion_key_name
   bastion_admin_cidr  = var.bastion_admin_cidr
@@ -38,7 +38,17 @@ module "eks" {
   cluster_tags        = var.eks_cluster_tags
   addon_versions      = var.eks_addon_versions
   vpc_id = module.vpc.vpc_id
+
+
+
+
 }
+
+# module "workload-iam" {
+
+#   source = "./modules/workload-iam"
+
+# }
 
 
 module "rds" {

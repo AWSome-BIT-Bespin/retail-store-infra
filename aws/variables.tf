@@ -226,3 +226,87 @@ variable "bastion_admin_cidr" {
 variable "eks_endpoint_public_access" {
   type        = bool
 }
+
+variable "bastion_role_name" {
+  type        = string
+}
+
+variable "alb_controller_namespace" {
+  type = string
+}
+
+variable "alb_controller_service_account" {
+  type = string
+}
+
+variable "alb_controller_policy_arn" {
+  type = string
+}
+
+variable "autoscaler_namespace" {
+  type = string
+}
+
+variable "autoscaler_service_account" {
+  type = string
+}
+
+variable "cart_namespace" {
+  type = string
+}
+
+variable "cart_service_account" {
+  type = string
+}
+
+variable "cart_table_arn" {
+  type = string
+}
+
+variable "eso_namespace" {
+  type = string
+}
+
+variable "eso_service_account" {
+  type = string
+}
+
+variable "eso_secret_arns" {
+  type = list(string)
+}
+
+variable "eso_parameter_arns" {
+  type = list(string)
+}
+
+
+variable "eso_role" {
+    type = string
+}
+
+variable "cart_dynamo_role" {
+    type = string
+}
+
+variable "alb_role" {
+    type = string
+}
+
+variable "autoscaler_role" {
+    type = string
+}
+
+variable "autoscaler_policy_name" {
+  type    = string
+  default = "RetailClusterAutoscalerPolicy"
+}
+
+variable "cart_dynamo_policy_name" {
+  type    = string
+  default = "RetailCartDynamoDBPolicy"
+}
+
+variable "eso_policy_name" {
+  type    = string
+  default = "RetailESOReadPolicy"
+}

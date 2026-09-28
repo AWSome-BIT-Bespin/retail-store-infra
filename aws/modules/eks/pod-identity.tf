@@ -22,31 +22,6 @@ locals {
   ]
 }
 
-resource "aws_eks_pod_identity_association" "alb_controller" {
-  cluster_name    = aws_eks_cluster.retail_cluster.name
-  namespace       = local.alb_controller_namespace
-  service_account = local.alb_controller_service_account
-  role_arn        = aws_iam_role.retail-alb-controller-role.arn
-
-  disable_session_tags = false
-
-  depends_on = [
-    aws_eks_addon.pod_identity_agent,
-    aws_iam_role_policy_attachment.retail-alb-controller-policy,
-  ]
-}
 
 
-resource "aws_eks_pod_identity_association" "eso" {
-  cluster_name    = aws_eks_cluster.retail_cluster.name
-  namespace       = local.eso_namespace
-  service_account = local.eso_service_account
-  role_arn        = aws_iam_role.retail-eso-role.arn
 
-  disable_session_tags = false
-
-  depends_on = [
-    aws_eks_addon.pod_identity_agent,
-    aws_iam_role_policy_attachment.retail-eso-policy,
-  ]
-}

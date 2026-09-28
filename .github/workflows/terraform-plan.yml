@@ -1,0 +1,61 @@
+name: Terraform stg Plan
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: terraform-aws-stg
+  cancel-in-progress: false
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TF_WORKSPACE: default
+  TG_NON_INTERACTIVE: "true"
+  TG_TF_PATH: terraform
+
+jobs:
+  plan:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        working-directory: live/aws/stg
+
+    steps:
+      - name: 저장소 코드 다운로드
+        uses: actions/checkout@v6
+
+      - name: Terraform 설치
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.1"
+          terraform_wrapper: false
+
+      - name: Terragrunt 설치
+        uses: gruntwork-io/terragrunt-action@v3
+        with:
+          tg_version: "1.1.6"
+          tf_path: terraform
+
+      - name: AWS 인증
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        with:
+          role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
+          aws-region: ap-northeast-2
+          allowed-account-ids: "350606136784"
+
+      - name: Backend 초기화
+        run: terragrunt run -- init -input=false
+
+      - name: 추적 중인 리소스 확인
+        run: terragrunt run -- state list
+
+      - name: 변경 계획 확인
+        run: terragrunt run -- plan -input=false -no-color -lock-timeout=5m
