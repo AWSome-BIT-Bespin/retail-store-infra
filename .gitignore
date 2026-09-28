@@ -5,7 +5,9 @@
 tfplan
 # .terraform.lock.hcl
 *.plan.json
+
 .terraform-cache/
+.terragrunt-cache/
 crash.log
 crash.*.log
 override.tf

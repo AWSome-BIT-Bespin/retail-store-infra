@@ -11,7 +11,7 @@ terraform {
     commands = ["init"]
 
     arguments = [
-      "-backend-config=key=infra/${local.state_path}/terraform.tfstate",
+      "-backend-config=key=${local.state_path}/terraform.tfstate",
     ]
   }
 }
