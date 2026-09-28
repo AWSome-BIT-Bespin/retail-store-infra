@@ -59,3 +59,12 @@ jobs:
 
       - name: 변경 계획 확인
         run: terragrunt run -- plan -input=false -no-color -lock-timeout=5m
+
+      - name: Backend 초기화
+        run: terragrunt run -- init -reconfigure -input=false
+
+      - name: 추적 중인 리소스 확인
+        run: terragrunt run -- state list
+
+      - name: 변경 계획 확인
+        run: terragrunt run -- plan -input=false -no-color -lock-timeout=5m
