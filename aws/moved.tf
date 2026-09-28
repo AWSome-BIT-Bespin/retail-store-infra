@@ -138,3 +138,59 @@ moved {
   from = module.eks.aws_eks_pod_identity_association.cart
   to   = module.workload_iam.aws_eks_pod_identity_association.cart
 }
+
+
+moved {
+  from = module.eks.aws_iam_role.retail-alb-controller-role
+  to   = module.workload_iam.aws_iam_role.retail-alb-controller-role
+}
+
+moved {
+  from = module.eks.aws_iam_role_policy_attachment.retail-alb-controller-policy
+  to   = module.workload_iam.aws_iam_role_policy_attachment.retail-alb-controller-policy
+}
+
+moved {
+  from = module.eks.aws_iam_role.retail-cluster-autoscaler-role
+  to   = module.workload_iam.aws_iam_role.retail-cluster-autoscaler-role
+}
+
+moved {
+  from = module.eks.aws_iam_policy.retail-cluster-autoscaler-policy
+  to   = module.workload_iam.aws_iam_policy.retail-cluster-autoscaler-policy
+}
+
+moved {
+  from = module.eks.aws_iam_role_policy_attachment.retail-cluster-autoscaler-policy
+  to   = module.workload_iam.aws_iam_role_policy_attachment.retail-cluster-autoscaler-policy
+}
+
+moved {
+  from = module.eks.aws_eks_pod_identity_association.cluster_autoscaler
+  to   = module.workload_iam.aws_eks_pod_identity_association.cluster_autoscaler
+}
+
+moved {
+  from = module.eks.aws_iam_role.retail-eso-role
+  to   = module.workload_iam.aws_iam_role.retail-eso-role
+}
+
+moved {
+  from = module.eks.aws_iam_policy.retail-eso-policy
+  to   = module.workload_iam.aws_iam_policy.retail-eso-policy
+}
+
+moved {
+  from = module.eks.aws_iam_role_policy_attachment.retail-eso-policy
+  to   = module.workload_iam.aws_iam_role_policy_attachment.retail-eso-policy
+}
+
+moved {
+  from = module.eks.aws_eks_pod_identity_association.alb_controller
+  to   = module.workload_iam.aws_eks_pod_identity_association.alb_controller
+}
+
+moved {
+  from = module.eks.aws_eks_pod_identity_association.eso
+  to   = module.workload_iam.aws_eks_pod_identity_association.eso
+}

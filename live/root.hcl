@@ -1,13 +1,17 @@
 terraform_binary = "terraform"
 
+locals {
+  state_path = trimprefix(path_relative_to_include(), "aws/")
+}
+
 terraform {
-  source = "${get_repo_root()}/aws"
+  source = "${get_terragrunt_dir()}/../../../aws"
 
   extra_arguments "environment_backend" {
     commands = ["init"]
 
     arguments = [
-      "-backend-config=key=infra/${path_relative_to_include()}/terraform.tfstate",
+      "-backend-config=key=infra/${local.state_path}/terraform.tfstate",
     ]
   }
 }

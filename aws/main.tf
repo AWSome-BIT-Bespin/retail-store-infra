@@ -38,7 +38,17 @@ module "eks" {
   cluster_tags        = var.eks_cluster_tags
   addon_versions      = var.eks_addon_versions
   vpc_id = module.vpc.vpc_id
+
+
+
+
 }
+
+# module "workload-iam" {
+
+#   source = "./modules/workload-iam"
+
+# }
 
 
 module "rds" {
