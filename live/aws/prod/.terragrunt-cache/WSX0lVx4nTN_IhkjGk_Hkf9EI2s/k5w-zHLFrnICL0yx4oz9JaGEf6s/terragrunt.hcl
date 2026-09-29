@@ -19,19 +19,49 @@ inputs = {
     db_b     = "10.0.6.0/24"
   }
 
-  eks_cluster_name = "retail-infra-eks"
+  bastion_role_name        = "retail-prod-bastion-role"
+  autoscaler_policy_name  = "RetailProdClusterAutoscalerPolicy"
+  cart_dynamo_policy_name = "RetailProdCartDynamoDBPolicy"
+  eso_policy_name         = "RetailProdESOReadPolicy"
+  eso_role                = "retail-prod-eso-role"
+  alb_role                = "retail-prod-alb-controller-role"
+  cart_dynamo_role         = "retail-prod-cart-dynamo-role"
+  autoscaler_role          = "retail-prod-cluster-autoscaler-role"
+
+  alb_controller_namespace       = "kube-system"
+  alb_controller_service_account = "aws-load-balancer-controller-sa"
+  alb_controller_policy_arn      = "arn:aws:iam::350606136784:policy/AWSLoadBalancerControllerIAMPolicy"
+
+  autoscaler_namespace       = "kube-system"
+  autoscaler_service_account = "cluster-autoscaler-sa"
+
+  cart_namespace       = "retail-store"
+  cart_service_account = "carts-dynamo-sa"
+  cart_table_arn       = "arn:aws:dynamodb:ap-northeast-2:350606136784:table/retail-store-cart"
+
+  eso_namespace       = "external-secrets"
+  eso_service_account = "external-secrets-sa"
+  eso_secret_arns = [
+    "arn:aws:secretsmanager:ap-northeast-2:350606136784:secret:retail-store/orders-pLUtwV",
+  ]
+  eso_parameter_arns = [
+    "arn:aws:ssm:ap-northeast-2:350606136784:parameter/retail-store/orders/endpoint",
+    "arn:aws:ssm:ap-northeast-2:350606136784:parameter/retail-store/redis/url",
+  ]
+
+  eks_cluster_name = "retail-prod-eks"
 
   eks_cluster_version = "1.36"
 
-  eks_cluster_role_name = "retail-infra-eks-cluster-role"
+  eks_cluster_role_name = "retail-prod-eks-cluster-role"
 
-  eks_node_role_name = "retail-eks-node-role"
+  eks_node_role_name = "retail-prod-eks-node-role"
 
   eks_admin_principal_arn = "arn:aws:iam::350606136784:user/kdn15"
 
   eks_public_access_cidrs = ["0.0.0.0/0"]
 
-  eks_node_group_name = "retail-ng"
+  eks_node_group_name = "retail-prod-ng"
 
   eks_node_scaling_app = {
     desired_size = 2
@@ -59,11 +89,11 @@ inputs = {
   eks_endpoint_public_access = false
 
 
-  eks_cluster_tags = { Name = "retail-infra-eks", Project = "retail-infra", Environment = "prod", ManagedBy = "Terraform" }
+  eks_cluster_tags = { Name = "retail-prod-eks", Project = "retail-infra", Environment = "prod", ManagedBy = "Terraform" }
 
   eks_addon_versions = {}
 
-  rds_identifier = "retail-infra-postgres"
+  rds_identifier = "retail-prod-postgres"
 
   rds_engine_version = "16"
 
@@ -86,7 +116,7 @@ inputs = {
   rds_final_snapshot_identifier = null
 
   rds_client_security_group_ids = {}
-  rds_tags                      = { Name = "retail-infra-postgres", Project = "retail-infra", ManagedBy = "Terraform" }
+  rds_tags                      = { Name = "retail-prod-postgres", Project = "retail-infra", ManagedBy = "Terraform", Environment = "prod" }
 
 
   bastion_admin_cidr = "0.0.0.0/0"   # 예시: 내 PC 공인 IP로 변경

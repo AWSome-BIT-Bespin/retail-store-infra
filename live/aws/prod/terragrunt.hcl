@@ -37,13 +37,17 @@ inputs = {
 
   cart_namespace       = "retail-store"
   cart_service_account = "carts-dynamo-sa"
-  cart_table_arn = get_env("PROD_CART_TABLE_ARN")
+  cart_table_arn       = "arn:aws:dynamodb:ap-northeast-2:350606136784:table/retail-store-cart"
 
   eso_namespace       = "external-secrets"
   eso_service_account = "external-secrets-sa"
-  eso_secret_arns = jsondecode(get_env("PROD_ESO_SECRET_ARNS"))
-  eso_parameter_arns = jsondecode(get_env("PROD_ESO_PARAMETER_ARNS"))
-
+  eso_secret_arns = [
+    "arn:aws:secretsmanager:ap-northeast-2:350606136784:secret:retail-store/orders-pLUtwV",
+  ]
+  eso_parameter_arns = [
+    "arn:aws:ssm:ap-northeast-2:350606136784:parameter/retail-store/orders/endpoint",
+    "arn:aws:ssm:ap-northeast-2:350606136784:parameter/retail-store/redis/url",
+  ]
 
   eks_cluster_name = "retail-prod-eks"
 

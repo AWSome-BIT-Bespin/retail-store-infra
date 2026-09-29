@@ -21,11 +21,9 @@ inputs = {
 
   
   bastion_role_name = "retail-stg-bastion-role" 
-  
   autoscaler_policy_name = "RetailStgClusterAutoscalerPolicy"
   cart_dynamo_policy_name            = "RetailStgCartDynamoDBPolicy"
   eso_policy_name        = "RetailStgESOReadPolicy"
-  
   eso_role         = "retail-stg-eso-role"
   alb_role          = "retail-stg-alb-controller-role"
   cart_dynamo_role  = "retail-stg-cart-dynamo-role"
