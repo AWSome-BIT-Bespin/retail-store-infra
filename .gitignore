@@ -21,3 +21,4 @@ override.tf.json
 !.env.example
 terraform.tfvars.example
 legacy.tfvars
+.terragrunt-ci/
