@@ -1,0 +1,23 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::350606136784:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+          "token.actions.githubusercontent.com:sub": [
+            "repo:AWSome-BIT-Bespin/retail-store-infra:environment:aws-prod-apply",
+            "repo:AWSome-BIT-Bespin/retail-store-infra:environment:aws-prod-destroy",
+            "repo:AWSome-BIT-Bespin@323029296/retail-store-infra@1352059106:environment:aws-prod-apply",
+            "repo:AWSome-BIT-Bespin@323029296/retail-store-infra@1352059106:environment:aws-prod-destroy"
+          ]
+        }
+      }
+    }
+  ]
+}

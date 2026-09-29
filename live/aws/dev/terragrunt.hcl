@@ -7,7 +7,7 @@ include "root" {
 inputs = {
   aws_region = "ap-northeast-2"
 
-  bastion_role_name = "retail-bastion-role" 
+
   vpc_cidr = "10.0.0.0/16"
 
   availability_zones = []
@@ -20,6 +20,18 @@ inputs = {
     db_a     = "10.0.5.0/24"
     db_b     = "10.0.6.0/24"
   }
+  bastion_role_name = "retail-bastion-role"
+   
+  
+  #autoscaler_policy_name = "RetailStgClusterAutoscalerPolicy"
+  #cart_dynamo_policy_name            = "RetailStgCartDynamoDBPolicy"
+  #eso_policy_name        = "RetailStgESOReadPolicy"
+  eso_role = "retail-eso-role"
+  alb_role = "retail-alb-controller-role"
+  cart_dynamo_role = "retail-cart-dynamo-role"
+  autoscaler_role = "retail-cluster-autoscaler-role"
+
+
   alb_controller_namespace       = "kube-system"
   alb_controller_service_account = "aws-load-balancer-controller-sa"
   alb_controller_policy_arn      = "arn:aws:iam::350606136784:policy/AWSLoadBalancerControllerIAMPolicy"
@@ -81,7 +93,7 @@ inputs = {
   eks_endpoint_public_access = false
 
 
-  eks_cluster_tags = { Name = "retail-infra-eks", Project = "retail-infra", Environment = "prod", ManagedBy = "Terraform" }
+  eks_cluster_tags = { Name = "retail-infra-eks", Project = "retail-infra", Environment = "dev", ManagedBy = "Terraform" }
 
   eks_addon_versions = {}
 
@@ -108,7 +120,7 @@ inputs = {
   rds_final_snapshot_identifier = null
 
   rds_client_security_group_ids = {}
-  rds_tags                      = { Name = "retail-infra-postgres", Project = "retail-infra", ManagedBy = "Terraform" }
+  rds_tags                      = { Name = "retail-infra-postgres", Project = "retail-infra", ManagedBy = "Terraform", Environment = "dev" }
 
 
   bastion_admin_cidr = "0.0.0.0/0"   #
