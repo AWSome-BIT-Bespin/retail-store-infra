@@ -1,0 +1,9 @@
+# Operator는 관리용 노드 그룹에 배치합니다.
+nodeSelector:
+  workload: mgmt
+
+tolerations:
+  - key: dedicated
+    operator: Equal
+    value: mgmt
+    effect: NoSchedule
