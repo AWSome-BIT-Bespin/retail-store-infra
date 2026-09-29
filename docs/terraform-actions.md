@@ -35,13 +35,13 @@ Repository Variables:
 - `AWS_PLAN_ROLE_ARN_DEV`: dev Plan Role ARN
 - `AWS_PLAN_ROLE_ARN_STG`: stg Plan Role ARN; 생략하면 기존 `AWS_PLAN_ROLE_ARN` 사용
 - `AWS_PLAN_ROLE_ARN_PROD`: prod Plan Role ARN
-- `PROD_CART_TABLE_ARN`: prod Cart 테이블 ARN
-- `PROD_ESO_SECRET_ARNS`: prod Secret ARN JSON 배열
-- `PROD_ESO_PARAMETER_ARNS`: prod SSM Parameter ARN JSON 배열
 
-배열 예시 형식은 `["실제 ARN 1", "실제 ARN 2"]`입니다. Secret 내용 대신 리소스 ARN을 넣습니다.
-Prod 데이터 리소스는 이 root가 생성하지 않으므로 별도로 준비해야 합니다.
-로컬 prod 실행에도 같은 세 `PROD_*` 환경변수가 필요합니다.
+환경별 Cart 테이블·Secret·SSM Parameter ARN은 `live/aws/<환경>/terragrunt.hcl`의
+`cart_table_arn`, `eso_secret_arns`, `eso_parameter_arns`에 설정합니다. 로컬과 Actions는
+같은 HCL 입력을 사용하므로 `PROD_*` 환경변수나 GitHub Variables를 따로 등록하지 않습니다.
+Secret 내용 대신 리소스 ARN만 입력합니다. 이 root는 해당 데이터 리소스를 생성하지 않습니다.
+현재 prod의 이 ARN들은 dev/stg와 같으므로, 데이터를 분리하려면 prod 전용 리소스를 준비하고
+prod HCL의 ARN을 교체합니다.
 
 Environment Variables:
 

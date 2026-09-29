@@ -3,7 +3,6 @@ include "root" {
 }
 
 inputs = {
-  # 현재 WSL 코드의 값을 보존합니다. 비밀번호/Access Key는 이 파일에 넣지 않습니다.
   aws_region = "ap-northeast-2"
 
   vpc_cidr = "10.0.0.0/16"

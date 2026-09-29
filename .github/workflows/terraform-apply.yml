@@ -26,9 +26,6 @@ env:
   TG_TF_PATH: terraform
   TG_DOWNLOAD_DIR: ${{ github.workspace }}/.terragrunt-ci/${{ inputs.environment }}
   TARGET_ENV: ${{ inputs.environment }}
-  PROD_CART_TABLE_ARN: ${{ vars.PROD_CART_TABLE_ARN }}
-  PROD_ESO_SECRET_ARNS: ${{ vars.PROD_ESO_SECRET_ARNS }}
-  PROD_ESO_PARAMETER_ARNS: ${{ vars.PROD_ESO_PARAMETER_ARNS }}
 
 jobs:
   apply:
@@ -54,11 +51,6 @@ jobs:
         run: |
           case "$TARGET_ENV" in dev|stg|prod) ;; *) exit 1 ;; esac
           test -n "$AWS_ROLE_ARN" || { echo '선택한 환경의 AWS Role ARN을 등록하세요.'; exit 1; }
-          if [[ "$TARGET_ENV" == prod ]]; then
-            : "${PROD_CART_TABLE_ARN:?prod Cart 테이블 ARN을 등록하세요.}"
-            : "${PROD_ESO_SECRET_ARNS:?prod Secret ARN JSON 배열을 등록하세요.}"
-            : "${PROD_ESO_PARAMETER_ARNS:?prod SSM ARN JSON 배열을 등록하세요.}"
-          fi
 
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
         with:
