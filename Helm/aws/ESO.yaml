@@ -22,8 +22,10 @@ spec:
       region: ap-northeast-2
 
 ---
-# Prerequisites: ESO, retail-store/eso-secrets-reader, and the two SecretStores in ESO.yaml.
+# Prerequisites: ESO installed with controller ServiceAccount external-secrets/external-secrets-sa.
+# Terraform manages its IAM role and EKS Pod Identity association; svc.sh installs the controller and ServiceAccount.
 # AWS region: ap-northeast-2. Create the AWS source values before applying this file.
+# This file defines both SecretStores and ExternalSecrets; apply it after ESO is ready.
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
