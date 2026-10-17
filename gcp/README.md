@@ -1,6 +1,6 @@
 # GCP Terraform 구성 및 기존 리소스 관리
 
-문서 기준일: **2026-10-16**. 아래 설명은 [`main`의 코드 기준 커밋 `7822aef`](https://github.com/AWSome-BIT-Bespin/retail-store-infra/tree/7822aefa5f51fda1a183f289820fc7b39c3f02e6/gcp)을 대조한 결과다. 클라우드의 현재 실행 상태를 조회한 결과는 아니다.
+문서 기준일: **2026-10-17**. 아래 설명은 [`main`의 코드 기준 커밋 `b035df9`](https://github.com/AWSome-BIT-Bespin/retail-store-infra/tree/b035df919eb381d79945f77e4ae1073390bae09d/gcp)을 대조한 결과다. 클라우드의 현재 실행 상태를 조회한 결과는 아니다.
 
 이 디렉터리는 `kdt4-3`의 기존 DR 환경을 Terraform으로 관리하기 위해 정리한 독립 root module이다. 최초 문서는 2026-09-18 콘솔 관측을 바탕으로 작성했으며, 이후 변경된 `.tf` 파일을 기준으로 이 README를 갱신했다. Terraform 작업은 PC의 WSL에서 진행한 것으로 확인됐다. 실행 위치와 state 저장 위치는 별개이며, 현재 코드의 backend는 **GCS**다.
 
@@ -28,7 +28,7 @@
 |---|---|
 | [`terraform.tfvars`](terraform.tfvars) | 이전 모듈용 예시 값 11개가 남아 있다. 현재 코드가 선언한 입력 변수가 아니므로 프로젝트·CIDR·노드 설정을 바꾸는 입력으로 사용할 수 없다. 자동 로딩 시 미선언 변수 경고가 발생한다. |
 | [`import-existing.sh`](import-existing.sh) | 현재 코드에 없는 `google_compute_subnetwork.admin` 가져오기가 포함돼 있다. 일괄 실행하면 일부 state 등록 후 중단될 수 있으므로 그대로 실행하지 않는다. |
-| `imports.tf` | 현재 디렉터리에 없다. 과거의 “19개 자동 import” 안내는 현재 구성에 적용되지 않는다. |
+| `imports.tf` | 현재 디렉터리에 없다. 이 이름의 파일은 Terraform 실행의 필수 파일이 아니다. 과거의 “19개 자동 import” 안내는 현재 구성에 적용되지 않는다. |
 | [`COPY_PASTE.md`](COPY_PASTE.md) | 관리 서브넷·관리 VM 등 이전 구성이 포함된 복사본이다. 현재 `.tf` 파일을 덮어쓰는 용도로 사용하지 않는다. |
 | [`backend.tf.example`](backend.tf.example), [`backend.hcl.example`](backend.hcl.example) | backend를 정하기 전의 예시다. 이미 존재하는 `backend.tf`를 덮어쓸 필요가 없다. |
 | [`validation.json`](validation.json) | 최초 작성 당시의 검사 기록이다. `imports: 19`, `fmt: pass` 등을 현재 코드의 검증 결과로 인용하지 않는다. |
@@ -77,7 +77,7 @@ WSL에서 Terraform을 실행해도 state는 위 GCS backend에 저장할 수 �
 | Bastion 메타데이터 | `enable-osconfig = TRUE`, Ops Agent label, `enable-oslogin` 명시 없음 |
 | 스냅샷 | 기존 공유 정책 `default-schedule-1`을 data source로 조회해 Bastion 디스크에 연결. 정책의 일정·보존 기간은 이 코드가 관리하지 않음 |
 
-현재 코드에는 별도 관리 서브넷 `retail-dr-admin-subnet`과 관리 VM `retail-dr-admin` resource가 없다. 예전 README의 관리 서브넷·관리 VM, 노드 1대, 사용하지 않는 보조 CIDR 설명을 현재 구성으로 적용하면 안 된다. 코드에서 resource가 없다는 사실만으로 실제 자원의 삭제 여부를 판단하지 않는다.
+현재 코드의 관리 접속용 VM은 **Bastion `retail-dr-bastion`**이며, **GKE 서브넷 `retail-dr-gke-subnet`**에 연결돼 있다. 별도 관리 서브넷 `retail-dr-admin-subnet`과 관리 VM `retail-dr-admin` resource는 선언돼 있지 않다. 예전 README의 관리 서브넷·관리 VM, 노드 1대, 사용하지 않는 보조 CIDR 설명을 현재 구성으로 적용하면 안 된다. 코드에서 resource가 없다는 사실만으로 실제 자원의 삭제 여부를 판단하지 않는다.
 
 노드 수 2는 종료 후 비용 절감을 위해 노드를 0으로 내렸던 실행 상태와 별개다. 해당 상태에서 계획을 생성하면 노드 수 복구 등 변경이 표시될 수 있으므로 `No changes`를 미리 보장하지 않는다.
 
@@ -177,10 +177,23 @@ terraform -chdir=gcp plan -input=false -lock-timeout=5m \
 
 - **Bastion 태그와 SSH 규칙:** `compute.tf`의 실제 태그 문자열은 `retail-dr-basion`이고, `allow-iap-ssh-bastion`의 대상 태그는 `retail-dr-bastion`이다. 코드상 두 값은 일치하지 않는다. 해당 방화벽의 출발지는 `0.0.0.0/0`이므로 태그만 고치면 허용 범위의 의미가 달라질 수 있다. 별도 `allow-iap-ssh`는 IAP 대역 `35.235.240.0/20`의 TCP 22를 태그 제한 없이 허용한다. 현재 코드의 Bastion에는 외부 IP가 없으며, 넓은 방화벽 규칙만으로 인터넷에서 직접 접속 가능하다고 판단하지 않는다.
 - **사설 노드와 NAT:** Cloud NAT가 선언돼 있지만 클러스터·노드 풀의 Private Nodes는 모두 꺼져 있다. NAT 존재를 사설 노드 구성 완료의 증거로 삼지 않는다. 사설 노드 전환은 별도 코드·통신 경로 검토가 필요한 작업이다.
-- **삭제 보호:** 현재 명시된 `lifecycle.prevent_destroy`는 모두 `false`다. GKE의 `deletion_protection = true`는 provider가 Terraform을 통한 클러스터 삭제를 제한하는 별도 설정이다. Bastion의 `deletion_protection`은 `false`다. 이 값을 전체 자원의 삭제 방지 또는 콘솔/API 삭제 방지로 일반화하지 않는다. [Google provider 8.3.0 GKE 문서](https://registry.terraform.io/providers/hashicorp/google/8.3.0/docs/resources/container_cluster)
 - **IAM 범위:** 여기서 관리하는 프로젝트 역할 연결은 `iam.tf`의 두 항목이다. 실제 계정에 추가된 모든 역할이나 Artifact Registry 저장소별 IAM을 코드가 전부 관리한다고 가정하지 않는다. Bastion의 `container.developer`만으로 VPC/IAM 전체 변경 권한이 생기지는 않는다.
 - **업그레이드와 용량:** 별도 노드 풀의 목표는 2대이며, surge 설정은 업그레이드 중 추가 노드를 허용한다. 종료 후 축소 상태와 코드의 목표 용량을 구분해 계획을 검토한다.
 - **관측·소프트웨어:** Ops Agent label과 `enable-osconfig` 설정만으로 VM 내부 도구 설치나 외부 대시보드·알림 구성이 모두 재현되지는 않는다. kubectl·gcloud·Terraform 설치와 수동 파일은 별도 관리 범위다.
+
+### 삭제 보호 설정
+
+삭제 보호는 설정마다 적용 대상과 범위가 다르다. 현재 저장소에 선언된 값은 다음과 같다.
+
+| 설정 | 현재 코드 | 의미 |
+|---|---|---|
+| `lifecycle.prevent_destroy` | 명시된 항목 모두 `false` | 해당 lifecycle 규칙으로 Terraform의 삭제·교체 계획을 차단하지 않음 |
+| GKE 클러스터 `deletion_protection` | [`gke.tf`](gke.tf): `true` | Google provider가 Terraform을 통한 클러스터 삭제를 막도록 선언. 실제 삭제 판단에는 state에 기록된 값도 관련됨 |
+| Bastion VM `deletion_protection` | [`compute.tf`](compute.tf): `false` | Bastion VM의 삭제 보호를 끄도록 선언 |
+
+이 표는 **코드의 설정값**이며, 현재 state나 실제 자원의 보호 상태를 확인한 결과가 아니다. GKE의 위 provider 설정을 콘솔·API를 통한 모든 삭제까지 막는 보호로 설명하지 않는다. 이번 문서 정리는 이 값을 변경하지 않는다. [Google provider 8.3.0 GKE 문서](https://registry.terraform.io/providers/hashicorp/google/8.3.0/docs/resources/container_cluster)
+
+참고로 `prevent_destroy = true`를 사용하는 경우에도 해당 규칙이 구성에 남아 있을 때 삭제·교체 계획을 제한한다. resource 구성을 통째로 제거하면 이 규칙만으로 삭제를 막지 못한다. [Terraform lifecycle 공식 문서](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle#prevent_destroy)
 
 ## 전체 환경 재구축과의 경계
 
