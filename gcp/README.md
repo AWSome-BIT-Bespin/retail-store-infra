@@ -1,6 +1,6 @@
 # GCP Terraform 구성 및 기존 리소스 관리
 
-문서 기준일: **2026-10-17**. 아래 설명은 [`main`의 코드 기준 커밋 `b035df9`](https://github.com/AWSome-BIT-Bespin/retail-store-infra/tree/b035df919eb381d79945f77e4ae1073390bae09d/gcp)을 대조한 결과다. 클라우드의 현재 실행 상태를 조회한 결과는 아니다.
+문서 기준일: **2026-10-17**. 아래 설명은 [`main`의 코드 기준 커밋 `6368e29`](https://github.com/AWSome-BIT-Bespin/retail-store-infra/tree/6368e297c1475c49e3dedf283981226f74c5ff14/gcp)을 대조하고, 이후 사용하지 않는 관리 서브넷의 import 명령 한 줄을 제거한 결과를 반영했다. 클라우드의 현재 실행 상태를 조회한 결과는 아니다.
 
 이 디렉터리는 `kdt4-3`의 기존 DR 환경을 Terraform으로 관리하기 위해 정리한 독립 root module이다. 최초 문서는 2026-09-18 콘솔 관측을 바탕으로 작성했으며, 이후 변경된 `.tf` 파일을 기준으로 이 README를 갱신했다. Terraform 작업은 PC의 WSL에서 진행한 것으로 확인됐다. 실행 위치와 state 저장 위치는 별개이며, 현재 코드의 backend는 **GCS**다.
 
@@ -22,12 +22,12 @@
 | [`compute.tf`](compute.tf) | Bastion, 기존 공유 스냅샷 정책 조회와 디스크 연결 |
 | [`outputs.tf`](outputs.tf) | 클러스터 이름, Bastion 내부 IP, IAP SSH·GKE 인증정보 조회 명령 출력 |
 
-현재 값은 `.tf` 파일에 직접 선언돼 있으며 **`variable` 블록은 없다**. 같은 디렉터리에 남은 아래 파일은 현재 코드와 구분해서 읽어야 한다.
+현재 값은 `.tf` 파일에 직접 선언돼 있으며 **`variable` 블록은 없다**. 같은 디렉터리의 보조 파일·과거 자료는 아래 범위로 사용한다.
 
 | 파일·과거 안내 | 현재 해석 |
 |---|---|
 | [`terraform.tfvars`](terraform.tfvars) | 이전 모듈용 예시 값 11개가 남아 있다. 현재 코드가 선언한 입력 변수가 아니므로 프로젝트·CIDR·노드 설정을 바꾸는 입력으로 사용할 수 없다. 자동 로딩 시 미선언 변수 경고가 발생한다. |
-| [`import-existing.sh`](import-existing.sh) | 현재 코드에 없는 `google_compute_subnetwork.admin` 가져오기가 포함돼 있다. 일괄 실행하면 일부 state 등록 후 중단될 수 있으므로 그대로 실행하지 않는다. |
+| [`import-existing.sh`](import-existing.sh) | 기존 자원을 state에 등록하는 보조 스크립트다. 사용하지 않는 `google_compute_subnetwork.admin` 명령을 제거했고, 남은 17개 import 주소가 현재 resource 선언과 일치한다. 실행 전에 실제 자원과 state를 대조해야 한다. |
 | `imports.tf` | 현재 디렉터리에 없다. 이 이름의 파일은 Terraform 실행의 필수 파일이 아니다. 과거의 “19개 자동 import” 안내는 현재 구성에 적용되지 않는다. |
 | [`COPY_PASTE.md`](COPY_PASTE.md) | 관리 서브넷·관리 VM 등 이전 구성이 포함된 복사본이다. 현재 `.tf` 파일을 덮어쓰는 용도로 사용하지 않는다. |
 | [`backend.tf.example`](backend.tf.example), [`backend.hcl.example`](backend.hcl.example) | backend를 정하기 전의 예시다. 이미 존재하는 `backend.tf`를 덮어쓸 필요가 없다. |
@@ -126,7 +126,9 @@ terraform -chdir=gcp validate -json
 | `validate -json` | **검증 완료로 판정하지 않음.** 오류 1개: 내려받은 provider 패키지가 보관된 lock 파일의 체크섬과 일치하지 않음. 미선언 변수 경고도 표시됨 |
 | 실제 GCP·GCS 조회, import, plan, apply | 이번 문서 수정에서 미실행 |
 
-체크섬 불일치가 해소되기 전에는 구성의 유효성 검사가 통과했다고 설명하지 않는다. 실행 플랫폼과 신뢰할 수 있는 provider 배포본·lock 파일을 대조해 원인을 확인해야 하며, 검증을 통과시키기 위해 체크섬을 무조건 교체하지 않는다. 이번 변경은 README만 수정하며 `.tf`, `terraform.tfvars`, lock 파일과 기존 검사 기록은 변경하지 않는다.
+체크섬 불일치가 해소되기 전에는 구성의 유효성 검사가 통과했다고 설명하지 않는다. 실행 플랫폼과 신뢰할 수 있는 provider 배포본·lock 파일을 대조해 원인을 확인해야 하며, 검증을 통과시키기 위해 체크섬을 무조건 교체하지 않는다. 2026-10-16에는 README만 수정했고, 2026-10-17 후속 정리에서는 `import-existing.sh`의 사용하지 않는 관리 서브넷 import 명령 한 줄을 제거했다. `.tf`, `terraform.tfvars`, lock 파일과 기존 검사 기록은 변경하지 않았다.
+
+후속 정리에서는 스크립트의 Bash 문법과 17개 import 주소가 현재 resource 선언에 대응하는지 확인했다. 실제 자원 ID의 유효성, state 등록 상태와 import·plan 실행 성공을 검증한 것은 아니다.
 
 최초 `validation.json`은 Terraform 1.16.0 / Google provider 8.3.0에서 오류 0·경고 0을 기록한 과거 산출물이다. 위 현재 checkout 검사와 구분하며, 과거 기록을 팀 전체의 이후 Terraform 실행 여부에 대한 증거로 확대하지 않는다.
 
@@ -149,7 +151,7 @@ terraform -chdir=gcp state list
 ```
 
 3. 기존 state의 주소와 위 17개 선언을 대조한다. 다른 workspace나 module 주소로 관리 중인 경우 먼저 이동 계획을 정한다. 임의로 state를 삭제하거나 초기화하지 않는다.
-4. 기존 실자원은 있지만 어느 state에도 연결돼 있지 않은 항목만 resource별로 검토해 import한다. **현재 `import-existing.sh`는 일괄 실행하지 않는다.** 아래는 VPC 한 개에 대한 형식 예시이며, 이미 관리 중이거나 실제 자원이 없으면 실행 대상이 아니다.
+4. 기존 실자원은 있지만 어느 state에도 연결돼 있지 않은 항목만 resource별로 검토해 import한다. `import-existing.sh`의 대상 주소는 현재 코드와 맞췄지만, **실제 자원과 state를 대조하기 전에는 일괄 실행하지 않는다.** 스크립트는 초기화한 `gcp/` 디렉터리에서 실행하는 구조이며, 17개 import 이후 `terraform plan`도 실행한다. 일부만 등록이 필요하면 필요한 항목만 개별 처리한다. 아래는 VPC 한 개에 대한 형식 예시이며, 이미 관리 중이거나 실제 자원이 없으면 실행 대상이 아니다.
 
 ```bash
 # state에 기록하는 작업이다. 현재 주소와 실제 자원 ID를 확인한 경우에만 실행.

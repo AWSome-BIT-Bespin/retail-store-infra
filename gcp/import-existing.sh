@@ -3,7 +3,6 @@ set -euo pipefail
 # Run only inside this initialized configuration directory with the intended state.
 # This writes Terraform state. It does not apply infrastructure changes.
 terraform import 'google_compute_network.retail' 'projects/kdt4-3/global/networks/retail-dr-vpc'
-terraform import 'google_compute_subnetwork.admin' 'projects/kdt4-3/regions/asia-northeast3/subnetworks/retail-dr-admin-subnet'
 terraform import 'google_compute_subnetwork.gke' 'projects/kdt4-3/regions/asia-northeast3/subnetworks/retail-dr-gke-subnet'
 terraform import 'google_compute_router.nat' 'projects/kdt4-3/regions/asia-northeast3/routers/retail-dr-router-real'
 terraform import 'google_compute_router_nat.retail' 'projects/kdt4-3/regions/asia-northeast3/routers/retail-dr-router-real/retail-dr-nat'
