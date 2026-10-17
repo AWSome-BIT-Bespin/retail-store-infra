@@ -1,6 +1,6 @@
 resource "google_container_cluster" "retail" {
   name                      = "retail-dr-gke"
-  location                  = "asia-northeast3-a"
+  location                  = var.zone
   network                   = google_compute_network.retail.id
   subnetwork                = google_compute_subnetwork.gke.id
   networking_mode           = "VPC_NATIVE"
@@ -18,11 +18,11 @@ resource "google_container_cluster" "retail" {
   }
 
   dns_config {
-  cluster_dns = "KUBE_DNS"
+    cluster_dns = "KUBE_DNS"
   }
 
   ip_allocation_policy {
-    cluster_secondary_range_name = "gke-retail-dr-gke-pods-89de90ed"
+    cluster_secondary_range_name = var.gke_pod_range_name
     stack_type                   = "IPV4"
 
     # Existing Service CIDR: 34.118.224.0/20 (GKE-managed).
@@ -99,10 +99,10 @@ resource "google_container_cluster" "retail" {
 
 resource "google_container_node_pool" "retail" {
   name              = "retail-dr-pool"
-  location          = "asia-northeast3-a"
+  location          = var.zone
   cluster           = google_container_cluster.retail.name
-  node_locations    = ["asia-northeast3-a"]
-  node_count        = 2
+  node_locations    = [var.zone]
+  node_count        = var.gke_node_count
   max_pods_per_node = 110
 
   # No autoscaling block: the observed node pool has autoscaling disabled.
@@ -124,12 +124,12 @@ resource "google_container_node_pool" "retail" {
   network_config {
     enable_private_nodes = false
     create_pod_range     = false
-    pod_range            = "gke-retail-dr-gke-pods-89de90ed"
+    pod_range            = var.gke_pod_range_name
   }
 
   node_config {
-    machine_type    = "n2d-standard-2"
-    disk_size_gb    = 50
+    machine_type    = var.gke_node_machine_type
+    disk_size_gb    = var.gke_node_disk_size_gb
     disk_type       = "pd-balanced"
     image_type      = "COS_CONTAINERD"
     service_account = google_service_account.gke_node.email
@@ -138,14 +138,14 @@ resource "google_container_node_pool" "retail" {
       "https://www.googleapis.com/auth/userinfo.email",
     ]
 
-  advanced_machine_features {
-    enable_nested_virtualization = false
-    threads_per_core             = 0
+    advanced_machine_features {
+      enable_nested_virtualization = false
+      threads_per_core             = 0
     }
 
-  ephemeral_storage_local_ssd_config {
-    local_ssd_count  = 0
-    data_cache_count = 0
+    ephemeral_storage_local_ssd_config {
+      local_ssd_count  = 0
+      data_cache_count = 0
     }
 
     metadata = {

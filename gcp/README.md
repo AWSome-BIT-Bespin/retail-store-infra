@@ -1,6 +1,6 @@
-# GCP Terraform 구성 및 기존 리소스 관리
+# GCP 단일 DR Terraform 구성 및 기존 리소스 관리
 
-문서 기준일: **2026-10-17**. 아래 설명은 [`main`의 코드 기준 커밋 `6368e29`](https://github.com/AWSome-BIT-Bespin/retail-store-infra/tree/6368e297c1475c49e3dedf283981226f74c5ff14/gcp)을 대조하고, 이후 사용하지 않는 관리 서브넷의 import 명령 한 줄을 제거한 결과를 반영했다. 클라우드의 현재 실행 상태를 조회한 결과는 아니다.
+문서 기준일: **2026-10-17**. [구조 정리 전 커밋 `94c8d37`](https://github.com/AWSome-BIT-Bespin/retail-store-infra/tree/94c8d377432c4cbd2334dbada288de91f5cd4a87/gcp)의 자원 설정을 기준으로, 단일 DR 실행 경로와 입력값 분리를 반영했다. 기존 자원 주소 17개·설정값·GCS 저장 위치를 유지하는 정리이며 클라우드의 현재 실행 상태를 조회한 결과는 아니다.
 
 이 디렉터리는 `kdt4-3`의 기존 DR 환경을 Terraform으로 관리하기 위해 정리한 독립 root module이다. 최초 문서는 2026-09-18 콘솔 관측을 바탕으로 작성했으며, 이후 변경된 `.tf` 파일을 기준으로 이 README를 갱신했다. Terraform 작업은 PC의 WSL에서 진행한 것으로 확인됐다. 실행 위치와 state 저장 위치는 별개이며, 현재 코드의 backend는 **GCS**다.
 
@@ -12,7 +12,9 @@
 
 | 파일 | 현재 역할 |
 |---|---|
-| [`versions.tf`](versions.tf) | Terraform `>= 1.5.0, < 2.0.0`, Google provider `8.3.0`, 프로젝트·리전·존 지정 |
+| [`../live/gcp/dr/terragrunt.hcl`](../live/gcp/dr/terragrunt.hcl) | 단일 DR 실행 진입점, 현재 운영 입력값 12개와 Terraform 소스 경로 |
+| [`variables.tf`](variables.tf) | 입력값의 이름·형식 선언. 중복 기본값 없이 DR 진입점에서 전달받음 |
+| [`versions.tf`](versions.tf) | Terraform `>= 1.5.0, < 2.0.0`, Google provider `8.3.0`; 전달받은 프로젝트·리전·존 사용 |
 | [`.terraform.lock.hcl`](.terraform.lock.hcl) | 이 GCP root module의 provider 버전·체크섬 기록. 저장소 루트의 AWS lock 파일과 구분 |
 | [`backend.tf`](backend.tf) | GCS state bucket과 prefix 지정 |
 | [`network.tf`](network.tf) | VPC, GKE 서브넷, Router·NAT, 수동 SSH 방화벽 2개 |
@@ -22,14 +24,32 @@
 | [`compute.tf`](compute.tf) | Bastion, 기존 공유 스냅샷 정책 조회와 디스크 연결 |
 | [`outputs.tf`](outputs.tf) | 클러스터 이름, Bastion 내부 IP, IAP SSH·GKE 인증정보 조회 명령 출력 |
 
-현재 값은 `.tf` 파일에 직접 선언돼 있으며 **`variable` 블록은 없다**. 같은 디렉터리의 보조 파일·과거 자료는 아래 범위로 사용한다.
+### 단일 DR 환경의 설정 흐름
+
+AWS는 `live/aws/dev`, `stg`, `prod`로 구분하지만 GCP는 **`live/gcp/dr` 하나**를 사용한다. 평상시 대기와 장애 전환 후 운영은 같은 DR 환경의 운용 단계다. 이번 정리는 자동 장애 전환이나 대기 시 용량 변경 기능을 추가하지 않는다.
+
+```text
+live/gcp/dr/terragrunt.hcl  ← 프로젝트·지역·주소·노드 수·사양 입력
+              ↓ inputs
+gcp/variables.tf           ← 입력값 이름·형식 선언
+              ↓ var.*
+gcp/network.tf, gke.tf, compute.tf, iam.tf, private-services.tf
+```
+
+운영 시 바꿀 값 12개는 DR의 `inputs` 한곳에서 관리한다. 자원 이름, IAM 역할, 방화벽·사설 노드·삭제 보호 등 기존 정책은 각 자원 파일에 유지한다. 입력값을 바꾸면 실제 변경·교체 계획이 생길 수 있으므로 적용 전에 검토한다. [Terragrunt inputs 공식 문서](https://docs.terragrunt.com/reference/hcl/attributes/#inputs)
+
+`live/gcp/dr/terrgrunt.hcl`의 이름을 `terragrunt.hcl`로 수정하고 중복 진입점 `live/dr/terragrunt.hcl`을 제거했다. AWS용 `live/root.hcl`은 상속하지 않는다. 기존 자원 주소가 바뀌지 않아 이 구조 정리 자체를 위한 `moved` 블록이나 state 이전은 추가하지 않는다.
+
+저장소에 이미 들어 있던 `.terragrunt-cache` 내부 파일은 과거 생성물이며 실행 기준이 아니다. 캐시 안의 옛 설정을 직접 수정하거나 실행하지 않는다. 아래 설명과 명령은 캐시 밖의 `gcp` 소스와 `live/gcp/dr/terragrunt.hcl`을 기준으로 한다.
+
+같은 디렉터리의 보조 파일·과거 자료는 아래 범위로 사용한다.
 
 | 파일·과거 안내 | 현재 해석 |
 |---|---|
-| [`terraform.tfvars`](terraform.tfvars) | 이전 모듈용 예시 값 11개가 남아 있다. 현재 코드가 선언한 입력 변수가 아니므로 프로젝트·CIDR·노드 설정을 바꾸는 입력으로 사용할 수 없다. 자동 로딩 시 미선언 변수 경고가 발생한다. |
-| [`import-existing.sh`](import-existing.sh) | 기존 자원을 state에 등록하는 보조 스크립트다. 사용하지 않는 `google_compute_subnetwork.admin` 명령을 제거했고, 남은 17개 import 주소가 현재 resource 선언과 일치한다. 실행 전에 실제 자원과 state를 대조해야 한다. |
+| [`legacy.tfvars`](legacy.tfvars) | 기존 `terraform.tfvars`의 예시 값 11개를 내용 그대로 보존한 과거 자료. 자동 로딩되지 않으며 현재 실행에 `-var-file`로 넘기지 않는다. 현재 DR 입력값은 이 파일에서 복사하지 않았다. |
+| [`import-existing.sh`](import-existing.sh) | 실행 위치를 `live/gcp/dr`로 맞추고 Terragrunt 입력에서 프로젝트·리전·존을 읽어 17개 import와 마지막 plan을 수행한다. Bash·Python 3·Terragrunt·Terraform이 필요하다. 실행 전에 실제 자원과 state를 대조해야 한다. |
 | `imports.tf` | 현재 디렉터리에 없다. 이 이름의 파일은 Terraform 실행의 필수 파일이 아니다. 과거의 “19개 자동 import” 안내는 현재 구성에 적용되지 않는다. |
-| [`COPY_PASTE.md`](COPY_PASTE.md) | 관리 서브넷·관리 VM 등 이전 구성이 포함된 복사본이다. 현재 `.tf` 파일을 덮어쓰는 용도로 사용하지 않는다. |
+| [`COPY_PASTE.md`](COPY_PASTE.md) | 상단에 현재 실행 경로와 안내를 추가하고, 관리 서브넷·관리 VM 등 이전 복사본은 과거 자료로 보존했다. 옛 코드로 현재 파일을 덮어쓰지 않는다. |
 | [`backend.tf.example`](backend.tf.example), [`backend.hcl.example`](backend.hcl.example) | backend를 정하기 전의 예시다. 이미 존재하는 `backend.tf`를 덮어쓸 필요가 없다. |
 | [`validation.json`](validation.json) | 최초 작성 당시의 검사 기록이다. `imports: 19`, `fmt: pass` 등을 현재 코드의 검증 결과로 인용하지 않는다. |
 
@@ -42,8 +62,8 @@ Terraform state는 **코드의 resource 주소와 실제 클라우드 객체를 
 | Backend | `gcs` |
 | Bucket | `kdt4-3-retail-dr-tfstate` |
 | Prefix | `retail-store/gcp/dr` |
-| 실행 디렉터리 | 이 저장소의 `gcp/` |
-| 입력 위치 | 개별 `.tf` 파일의 선언값. 현재 `terraform.tfvars`는 유효한 입력 정의와 연결되지 않음 |
+| 실행 디렉터리 | `live/gcp/dr/`에서 Terragrunt 실행. 실제 Terraform 소스는 `gcp/` |
+| 입력 위치 | `live/gcp/dr/terragrunt.hcl`의 `inputs` 12개. `gcp/variables.tf`로 전달 |
 
 WSL에서 Terraform을 실행해도 state는 위 GCS backend에 저장할 수 있다. Bucket은 이 구성에서 생성하지 않으므로 backend 초기화 전에 존재하고 접근 가능해야 한다. [GCS backend 공식 문서](https://developer.hashicorp.com/terraform/language/backend/gcs)
 
@@ -51,7 +71,7 @@ WSL에서 Terraform을 실행해도 state는 위 GCS backend에 저장할 수 �
 
 ## 코드에 선언된 구성
 
-아래 값은 코드의 목표 설정이다. 과거 콘솔 관측값이나 종료 후 자원의 실행 상태와 구분한다.
+아래 값은 DR `inputs`와 자원 코드가 함께 정의하는 목표 설정이다. 과거 콘솔 관측값이나 종료 후 자원의 실행 상태와 구분한다.
 
 | 항목 | 현재 선언 |
 |---|---|
@@ -111,11 +131,27 @@ WSL에서 Terraform을 실행해도 state는 위 GCS backend에 저장할 수 �
 
 실행 위치는 저장소 루트의 터미널이다. Terraform과 provider 다운로드에 필요한 네트워크가 필요하다. `-backend=false`는 GCS backend 연결을 생략한다. 이 검사는 실제 계정 권한, 자원 존재, state 정합성이나 배포 성공을 검증하지 않는다. [Terraform validate 공식 문서](https://developer.hashicorp.com/terraform/cli/commands/validate)
 
+Terraform과 Terragrunt를 설치한다. 이 정리에서 Terragrunt 명령은 **1.1.6**으로 검사했다. 가져오기 스크립트와 아래 테스트에는 Bash와 Python 3도 필요하다.
+
 ```bash
-terraform -chdir=gcp init -backend=false -input=false -lockfile=readonly
+# 저장소 루트: 서식과 스크립트 검사는 클라우드에 접근하지 않는다.
 terraform -chdir=gcp fmt -check
+bash -n gcp/import-existing.sh
+python3 -m unittest discover -s gcp/tests -v
+
+# DR 설정 해석: include/dependency로 다른 환경을 호출하지 않는 단일 구성이다.
+(
+  cd live/gcp/dr
+  terragrunt hcl fmt --check --file terragrunt.hcl
+  terragrunt render --json
+)
+
+# provider를 내려받아 코드 유효성을 검사하되 GCS에는 연결하지 않는다.
+terraform -chdir=gcp init -backend=false -input=false -lockfile=readonly
 terraform -chdir=gcp validate -json
 ```
+
+`validate`는 필수 입력값의 실제 적용 결과까지 확인하는 명령이 아니다. 입력값 전달은 위 Terragrunt 설정 해석과 별도의 변경 전후 대조로 확인한다. Windows에서는 아래에 기록한 기존 lock 체크섬 문제가 재현될 수 있다.
 
 2026-10-16에 별도 checkout에서 확인한 결과는 다음과 같다. 실행 환경은 Windows의 Terraform **1.15.8**, 선택한 Google provider는 **8.3.0**이다.
 
@@ -126,49 +162,67 @@ terraform -chdir=gcp validate -json
 | `validate -json` | **검증 완료로 판정하지 않음.** 오류 1개: 내려받은 provider 패키지가 보관된 lock 파일의 체크섬과 일치하지 않음. 미선언 변수 경고도 표시됨 |
 | 실제 GCP·GCS 조회, import, plan, apply | 이번 문서 수정에서 미실행 |
 
-체크섬 불일치가 해소되기 전에는 구성의 유효성 검사가 통과했다고 설명하지 않는다. 실행 플랫폼과 신뢰할 수 있는 provider 배포본·lock 파일을 대조해 원인을 확인해야 하며, 검증을 통과시키기 위해 체크섬을 무조건 교체하지 않는다. 2026-10-16에는 README만 수정했고, 2026-10-17 후속 정리에서는 `import-existing.sh`의 사용하지 않는 관리 서브넷 import 명령 한 줄을 제거했다. `.tf`, `terraform.tfvars`, lock 파일과 기존 검사 기록은 변경하지 않았다.
+체크섬 불일치가 해소되기 전에는 저장소의 lock 파일을 그대로 사용한 검사가 통과했다고 설명하지 않는다. 실행 플랫폼과 신뢰할 수 있는 provider 배포본·lock 파일을 대조해야 하며, 검증을 통과시키기 위해 체크섬을 무조건 교체하지 않는다. 2026-10-16에는 README만 수정했고, 2026-10-17의 관리 서브넷 명령 제거 단계까지는 `.tf`, `terraform.tfvars`, lock 파일과 기존 검사 기록을 변경하지 않았다. 이후 이번 단일 DR 정리에서 입력 변수 연결과 `legacy.tfvars` 이름 변경을 수행했다. provider 버전·저장소 lock 파일·과거 `validation.json`은 유지한다.
 
 후속 정리에서는 스크립트의 Bash 문법과 17개 import 주소가 현재 resource 선언에 대응하는지 확인했다. 실제 자원 ID의 유효성, state 등록 상태와 import·plan 실행 성공을 검증한 것은 아니다.
 
 최초 `validation.json`은 Terraform 1.16.0 / Google provider 8.3.0에서 오류 0·경고 0을 기록한 과거 산출물이다. 위 현재 checkout 검사와 구분하며, 과거 기록을 팀 전체의 이후 Terraform 실행 여부에 대한 증거로 확대하지 않는다.
+
+### 2026-10-17 단일 DR 정리의 검증
+
+| 검사 | 결과와 범위 |
+|---|---|
+| 변경 전후 설정 대조 | DR 입력값을 대입한 자원 17개·data source 1개·provider·기존 output 명령의 내용이 구조 정리 전과 일치함 |
+| 보존 확인 | GCS backend·두 GCP lock 파일·AWS 코드·워크플로 변경 없음. `legacy.tfvars`의 이전 내용과 `COPY_PASTE.md`의 과거 본문 보존 |
+| 입력값·스크립트 | 입력 12개가 선언·참조와 일치. 실제 Terragrunt 1.1.6 설정 해석, Bash 문법 및 클라우드 연결 없는 스크립트 테스트 7개 통과 |
+| 원래 lock으로 Windows 검사 | 초기화는 완료했지만 `validate`에서 기존 체크섬 오류 1개가 재현됨. 미선언 변수 경고는 더 이상 없음 |
+| 별도 임시 복사본의 `validate` | HashiCorp 서명 확인된 동일 provider 8.3.0으로 초기화하면서 Windows 패키지 해시와 기존 버전 제약을 임시 lock에 추가한 뒤 Terraform 직접 실행과 Terragrunt 경유 실행 모두 오류 0·경고 0. backend와 자동 초기화는 비활성화했으며 저장소 lock을 그대로 사용한 성공으로 해석하지 않음 |
+| 실제 GCP·GCS 조회, import·plan·apply | 미실행. 자원 존재·권한·state 연결·실제 변경 계획·DR 동작은 미검증 |
+
+저장소의 provider 버전과 lock 파일을 임의로 바꾸지는 않았다. 원래 lock을 사용한 Windows 실행 문제는 플랫폼별 provider 검증 및 lock 갱신이 필요한 별도 확인 사항으로 남는다. 위 임시 복사본 검사는 이번 코드의 구문·유형·provider 스키마 유효성을 확인한 결과다.
 
 ## 기존 환경에서 작업을 이어갈 때
 
 **전제조건:** GCP 프로젝트와 자원·GCS state bucket이 존재하고, 해당 state 및 대상 자원을 조회·관리할 권한이 있어야 한다. 현재는 리소스를 사용할 수 없으므로 이 절차를 새로 실행하지 않았다. 저장소 root module과 과거 WSL module 구성의 resource 주소가 다를 수 있으므로 같은 디렉터리에 합치지 않는다.
 
 1. 기존 작업 디렉터리·state의 소유 관계, backend bucket/prefix와 workspace를 확인한다. 기존 state가 있다면 새 state에 같은 객체를 다시 가져오지 않는다.
-2. 로컬 검사에서 드러난 체크섬·입력 파일 문제를 먼저 검토한다. 다음 인증은 브라우저 콘솔 로그인과 별개인 Terraform용 ADC(Application Default Credentials) 설정이다. 아래 명령은 PC의 WSL에서 실행하는 예시다.
+2. 로컬 검사에서 드러난 체크섬 문제를 먼저 검토하고 `live/gcp/dr/terragrunt.hcl`의 입력값을 확인한다. 다음 인증은 브라우저 콘솔 로그인과 별개인 Terraform용 ADC(Application Default Credentials) 설정이다. 아래 명령은 PC의 WSL에서 실행하는 예시다.
 
 ```bash
 # 저장소 루트에서 실행. 기존 자원과 state에 대한 접근 권한 필요.
 gcloud auth application-default login
 gcloud auth application-default set-quota-project kdt4-3
 
-# backend.tf에 선언된 GCS에 연결한다. 새 checkout을 전제로 한다.
-terraform -chdir=gcp init -input=false -lockfile=readonly
-terraform -chdir=gcp workspace show
-terraform -chdir=gcp state list
+# 단일 DR 진입점에서 backend.tf의 GCS에 연결한다.
+# 위 quota project는 현재 inputs의 project_id와 같은 값이다.
+cd live/gcp/dr
+terragrunt run -- init -input=false -lockfile=readonly
+terragrunt run -- workspace show
+terragrunt run -- state list
 ```
 
 3. 기존 state의 주소와 위 17개 선언을 대조한다. 다른 workspace나 module 주소로 관리 중인 경우 먼저 이동 계획을 정한다. 임의로 state를 삭제하거나 초기화하지 않는다.
-4. 기존 실자원은 있지만 어느 state에도 연결돼 있지 않은 항목만 resource별로 검토해 import한다. `import-existing.sh`의 대상 주소는 현재 코드와 맞췄지만, **실제 자원과 state를 대조하기 전에는 일괄 실행하지 않는다.** 스크립트는 초기화한 `gcp/` 디렉터리에서 실행하는 구조이며, 17개 import 이후 `terraform plan`도 실행한다. 일부만 등록이 필요하면 필요한 항목만 개별 처리한다. 아래는 VPC 한 개에 대한 형식 예시이며, 이미 관리 중이거나 실제 자원이 없으면 실행 대상이 아니다.
+4. 기존 실자원은 있지만 어느 state에도 연결돼 있지 않은 항목만 resource별로 검토해 import한다. `import-existing.sh`의 대상 주소는 현재 코드와 맞췄지만, **실제 자원과 state를 대조하기 전에는 일괄 실행하지 않는다.** 스크립트는 자체 위치를 기준으로 `live/gcp/dr`로 이동하고 해당 입력값을 읽으며, 17개 import 이후 `terragrunt run -- plan`도 실행한다. 모두 미등록인 기존 객체임을 확인한 경우 저장소 루트에서 `bash gcp/import-existing.sh`로 실행한다. 일부만 등록이 필요하면 필요한 항목만 개별 처리한다. 아래는 VPC 한 개에 대한 형식 예시이며, 이미 관리 중이거나 실제 자원이 없으면 실행 대상이 아니다.
 
 ```bash
-# state에 기록하는 작업이다. 현재 주소와 실제 자원 ID를 확인한 경우에만 실행.
-terraform -chdir=gcp import \
+# live/gcp/dr에서 실행. 현재 입력값과 실제 자원 ID를 확인한 경우에만 실행.
+# 아래 ID는 현재 project_id=kdt4-3을 기준으로 한 예시다.
+terragrunt run -- import \
   google_compute_network.retail \
   projects/kdt4-3/global/networks/retail-dr-vpc
 ```
 
 Import는 기존 객체와 resource 주소를 state에 연결한다. 각 객체는 하나의 관리 주소에 연결해야 한다. 다른 유형의 import ID는 Google provider 8.3.0의 해당 resource 문서와 실제 자원을 대조한다. [Terraform import 공식 문서](https://developer.hashicorp.com/terraform/cli/import/usage)
 
+스크립트는 터미널의 `TF_VAR_project_id`, `TF_VAR_region`, `TF_VAR_zone` 값이 DR 입력과 충돌하면 import 전에 종료한다. `TF_CLI_ARGS`, `TF_CLI_ARGS_init`, `TF_CLI_ARGS_import`, `TF_CLI_ARGS_plan`으로 추가 명령 인자가 주입된 경우에도 종료한다. 이 환경 변수들을 정리하고 DR 입력을 기준으로 실행한다. 별도 인자가 필요하면 대상·backend·입력값을 확인한 개별 명령으로 처리한다. [Terragrunt 변수 우선순위](https://docs.terragrunt.com/reference/hcl/attributes/#variable-precedence)
+
 5. state와 실제 자원을 확인한 뒤 계획을 검토한다. 아래 명령은 실제 GCP API와 backend에 접근하며, plan 파일에는 민감한 값이 포함될 수 있으므로 Git에 올리지 않는다.
 
 ```bash
-# WSL, 저장소 루트. 계획 파일의 로컬 접근 권한을 제한한다.
+# WSL, live/gcp/dr. 계획 파일은 Terragrunt 캐시와 구분한 절대 경로로 저장한다.
 umask 077
-terraform -chdir=gcp plan -input=false -lock-timeout=5m \
-  -detailed-exitcode -out=review.tfplan
+terragrunt run -- plan -input=false -lock-timeout=5m \
+  -detailed-exitcode -out="$PWD/review.tfplan"
 ```
 
 `-detailed-exitcode`의 0은 변경 없음, 1은 오류, 2는 변경 있음이다. 생성·수정·교체·삭제 대상과 이유를 검토한다. 현재 디렉터리에는 import 블록이 없으므로 plan이 자동으로 17개를 가져오지는 않는다. state 연결 전의 생성 계획을 그대로 적용하면 기존 환경 인수가 되지 않는다.

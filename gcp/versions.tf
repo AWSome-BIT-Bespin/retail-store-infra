@@ -10,9 +10,9 @@ terraform {
 }
 
 provider "google" {
-  project = "kdt4-3"
-  region  = "asia-northeast3"
-  zone    = "asia-northeast3-a"
+  project = var.project_id
+  region  = var.region
+  zone    = var.zone
 
   # Import existing resources without introducing a Terraform attribution label.
   add_terraform_attribution_label = false

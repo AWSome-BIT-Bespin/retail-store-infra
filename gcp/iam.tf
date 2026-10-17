@@ -4,7 +4,7 @@ resource "google_service_account" "gke_node" {
 }
 
 resource "google_project_iam_member" "gke_node" {
-  project = "kdt4-3"
+  project = var.project_id
   role    = "roles/container.defaultNodeServiceAccount"
   member  = "serviceAccount:${google_service_account.gke_node.email}"
 }
@@ -15,7 +15,7 @@ resource "google_service_account" "ops" {
 }
 
 resource "google_project_iam_member" "ops" {
-  project = "kdt4-3"
+  project = var.project_id
   role    = "roles/container.developer"
   member  = "serviceAccount:${google_service_account.ops.email}"
 }

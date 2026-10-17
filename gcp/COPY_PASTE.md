@@ -1,3 +1,15 @@
+# 현재 실행 안내와 과거 복사본
+
+현재 구성은 [README](README.md)와 [단일 DR 설정](../live/gcp/dr/terragrunt.hcl)을 따른다. 자원 소스는 `gcp/*.tf`, 실제 실행 위치는 `live/gcp/dr`이며 프로젝트·지역·노드 설정은 해당 `terragrunt.hcl`의 `inputs`에서 전달한다.
+
+이 문서 아래의 복사본에는 현재 사용하지 않는 관리 서브넷·관리 VM과 옛 보호 설정 등이 있다. **현재 파일을 아래 코드로 덮어쓰지 않는다.** 기존 `terraform.tfvars`는 내용을 보존해 [legacy.tfvars](legacy.tfvars)로 이름을 바꿨으며 현재 입력으로 사용하지 않는다.
+
+실행 전제조건·클라우드 연결 없는 검사·인증·state 확인·import·plan 절차는 갱신된 [README](README.md#기존-환경에서-작업을-이어갈-때)에 모았다. 현재 자원과 권한이 없으면 실제 import·plan을 실행할 수 없다.
+
+아래는 정리 전 자료를 내용 변경 없이 보존한 것이다.
+
+---
+
 # GCP 현재 구성: 파일별 복사·붙여넣기
 
 README.md의 인수 순서를 먼저 확인하세요. 현재 프로젝트의 기존 리소스를 import하기 위한 독립 구성입니다. 기존 module 기반 gcp 코드에 추가로 합쳐 넣지 마세요. 실제 plan은 아직 실행하지 않았습니다.

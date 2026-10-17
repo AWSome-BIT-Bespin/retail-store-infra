@@ -1,8 +1,8 @@
 resource "google_compute_instance" "bastion" {
-  name                = "retail-dr-bastion"
-  zone                = "asia-northeast3-a"
-  machine_type        = "e2-medium"
-  deletion_protection = false
+  name                       = "retail-dr-bastion"
+  zone                       = var.zone
+  machine_type               = var.bastion_machine_type
+  deletion_protection        = false
   key_revocation_action_type = "NONE"
 
   # Exact current spelling. See README before correcting this tag.
@@ -61,11 +61,11 @@ resource "google_compute_instance" "bastion" {
 # This policy is shared with code-server. Read it without taking ownership.
 data "google_compute_resource_policy" "shared_snapshot" {
   name   = "default-schedule-1"
-  region = "asia-northeast3"
+  region = var.region
 }
 
 resource "google_compute_disk_resource_policy_attachment" "bastion" {
   name = data.google_compute_resource_policy.shared_snapshot.name
   disk = google_compute_instance.bastion.name
-  zone = "asia-northeast3-a"
+  zone = var.zone
 }

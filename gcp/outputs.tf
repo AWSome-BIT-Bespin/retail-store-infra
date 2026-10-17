@@ -7,9 +7,9 @@ output "bastion_internal_ip" {
 }
 
 output "bastion_ssh_command" {
-  value = "gcloud compute ssh retail-dr-bastion --project=kdt4-3 --zone=asia-northeast3-a --tunnel-through-iap"
+  value = "gcloud compute ssh ${google_compute_instance.bastion.name} --project=${var.project_id} --zone=${var.zone} --tunnel-through-iap"
 }
 
 output "gke_credentials_from_bastion" {
-  value = "gcloud container clusters get-credentials retail-dr-gke --project=kdt4-3 --zone=asia-northeast3-a --internal-ip"
+  value = "gcloud container clusters get-credentials ${google_container_cluster.retail.name} --project=${var.project_id} --zone=${var.zone} --internal-ip"
 }

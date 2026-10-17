@@ -11,17 +11,17 @@ resource "google_compute_network" "retail" {
 
 resource "google_compute_subnetwork" "gke" {
   name                     = "retail-dr-gke-subnet"
-  region                   = "asia-northeast3"
+  region                   = var.region
   network                  = google_compute_network.retail.id
-  ip_cidr_range            = "10.20.0.0/20"
+  ip_cidr_range            = var.gke_subnet_cidr
   stack_type               = "IPV4_ONLY"
   private_ip_google_access = true
 
   # Existing GKE-created range. This is the range the current cluster uses.
   secondary_ip_range {
-    range_name              = "gke-retail-dr-gke-pods-89de90ed"
-    ip_cidr_range           = "10.90.0.0/17"
-    reserved_internal_range = "networkconnectivity.googleapis.com/projects/kdt4-3/locations/global/internalRanges/gke-retail-dr-gke-pods-89de90ed"
+    range_name              = var.gke_pod_range_name
+    ip_cidr_range           = var.gke_pod_cidr
+    reserved_internal_range = "networkconnectivity.googleapis.com/projects/${var.project_id}/locations/global/internalRanges/${var.gke_pod_range_name}"
   }
 
 
@@ -33,31 +33,31 @@ resource "google_compute_subnetwork" "gke" {
 
 resource "google_compute_router" "nat" {
   name    = "retail-dr-router-real"
-  region  = "asia-northeast3"
+  region  = var.region
   network = google_compute_network.retail.id
 }
 
 resource "google_compute_router_nat" "retail" {
   name                                = "retail-dr-nat"
-  region                              = "asia-northeast3"
+  region                              = var.region
   router                              = google_compute_router.nat.name
   nat_ip_allocate_option              = "AUTO_ONLY"
   source_subnetwork_ip_ranges_to_nat  = "LIST_OF_SUBNETWORKS"
   enable_dynamic_port_allocation      = false
   enable_endpoint_independent_mapping = false
 
-subnetwork {
-  name = google_compute_subnetwork.gke.id
+  subnetwork {
+    name = google_compute_subnetwork.gke.id
 
-  source_ip_ranges_to_nat = [
-    "PRIMARY_IP_RANGE",
-    "LIST_OF_SECONDARY_IP_RANGES",
-  ]
+    source_ip_ranges_to_nat = [
+      "PRIMARY_IP_RANGE",
+      "LIST_OF_SECONDARY_IP_RANGES",
+    ]
 
-  secondary_ip_range_names = [
-    "gke-retail-dr-gke-pods-89de90ed",
-  ]
-}
+    secondary_ip_range_names = [
+      var.gke_pod_range_name,
+    ]
+  }
 
   log_config {
     enable = false

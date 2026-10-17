@@ -2,8 +2,8 @@ resource "google_compute_global_address" "private_services" {
   name          = "google-managed-services-retail-dr-vpc"
   address_type  = "INTERNAL"
   purpose       = "VPC_PEERING"
-  address       = "10.40.0.0"
-  prefix_length = 16
+  address       = var.private_services_address
+  prefix_length = var.private_services_prefix_length
   network       = google_compute_network.retail.id
 
   lifecycle {
